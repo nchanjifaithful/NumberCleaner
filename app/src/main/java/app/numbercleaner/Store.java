@@ -1,0 +1,134 @@
+package app.numbercleaner;
+
+import android.content.Context;
+import android.content.SharedPreferences;
+import android.telephony.TelephonyManager;
+
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+
+/** Small SharedPreferences-backed store: selected country, recent numbers, last cleaned number. */
+public final class Store {
+
+    public static final int MAX_HISTORY = 15;
+
+    private static final String PREFS = "number_cleaner";
+    private static final String KEY_COUNTRY = "country";
+    private static final String KEY_HISTORY = "history";
+
+    public static final class Entry {
+        public final String number;
+        public final long time;
+
+        Entry(String number, long time) {
+            this.number = number;
+            this.time = time;
+        }
+    }
+
+    private final Context app;
+    private final SharedPreferences prefs;
+
+    public Store(Context context) {
+        app = context.getApplicationContext();
+        prefs = app.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+    }
+
+    // ---- Country ----
+
+    public Country getCountry() {
+        Country c = Country.fromId(prefs.getString(KEY_COUNTRY, null));
+        return c != null ? c : guessCountry();
+    }
+
+    public void setCountry(Country c) {
+        prefs.edit().putString(KEY_COUNTRY, c.id).apply();
+    }
+
+    /** SIM country, then network country, then device locale; Cameroon if nothing matches. */
+    private Country guessCountry() {
+        List<String> candidates = new ArrayList<>();
+        try {
+            TelephonyManager tm = (TelephonyManager) app.getSystemService(Context.TELEPHONY_SERVICE);
+            if (tm != null) {
+                candidates.add(tm.getSimCountryIso());      // no permission required
+                candidates.add(tm.getNetworkCountryIso());  // no permission required
+            }
+        } catch (RuntimeException ignored) {
+            // Some devices without telephony throw; fall through to locale.
+        }
+        candidates.add(Locale.getDefault().getCountry());
+        for (String iso : candidates) {
+            Country c = Country.byIso(iso);
+            if (c != null) return c;
+        }
+        return Country.byIso("CM");
+    }
+
+    // ---- History ----
+
+    public List<Entry> getHistory() {
+        List<Entry> out = new ArrayList<>();
+        try {
+            JSONArray arr = new JSONArray(prefs.getString(KEY_HISTORY, "[]"));
+            for (int i = 0; i < arr.length(); i++) {
+                JSONObject o = arr.getJSONObject(i);
+                out.add(new Entry(o.getString("n"), o.optLong("t")));
+            }
+        } catch (JSONException e) {
+            // Corrupt data: start over.
+        }
+        return out;
+    }
+
+    /** Most recent cleaned number, or null. */
+    public String getLast() {
+        List<Entry> h = getHistory();
+        return h.isEmpty() ? null : h.get(0).number;
+    }
+
+    /** Adds (or moves) a number to the top of history. Returns true if anything changed. */
+    public boolean remember(String number) {
+        if (number == null || number.isEmpty()) return false;
+        List<Entry> h = getHistory();
+        if (!h.isEmpty() && h.get(0).number.equals(number)) return false;
+        for (int i = h.size() - 1; i >= 0; i--) {
+            if (h.get(i).number.equals(number)) h.remove(i);
+        }
+        h.add(0, new Entry(number, System.currentTimeMillis()));
+        while (h.size() > MAX_HISTORY) h.remove(h.size() - 1);
+        save(h);
+        NumberWidget.updateAll(app);
+        return true;
+    }
+
+    public void remove(String number) {
+        List<Entry> h = getHistory();
+        for (int i = h.size() - 1; i >= 0; i--) {
+            if (h.get(i).number.equals(number)) h.remove(i);
+        }
+        save(h);
+        NumberWidget.updateAll(app);
+    }
+
+    public void clearHistory() {
+        prefs.edit().remove(KEY_HISTORY).apply();
+        NumberWidget.updateAll(app);
+    }
+
+    private void save(List<Entry> h) {
+        JSONArray arr = new JSONArray();
+        try {
+            for (Entry e : h) arr.put(new JSONObject().put("n", e.number).put("t", e.time));
+        } catch (JSONException ignored) {
+            // put() with String/long cannot fail.
+        }
+        // commit() so the widget, updated right after, reads the new value.
+        prefs.edit().putString(KEY_HISTORY, arr.toString()).commit();
+    }
+}

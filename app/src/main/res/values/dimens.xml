@@ -1,0 +1,6 @@
+<resources>
+    <dimen name="gutter">20dp</dimen>
+    <dimen name="radius_field">14dp</dimen>
+    <dimen name="radius_card">22dp</dimen>
+    <dimen name="widget_radius">24dp</dimen>
+</resources>

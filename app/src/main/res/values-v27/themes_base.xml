@@ -1,0 +1,8 @@
+<resources>
+    <style name="Base.Theme.NumberCleaner" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:navigationBarColor">@color/bg</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
+    </style>
+    <style name="Base.Dialog.NumberCleaner" parent="android:Theme.Material.Light.Dialog.Alert" />
+</resources>
