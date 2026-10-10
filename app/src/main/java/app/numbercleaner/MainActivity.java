@@ -14,47 +14,57 @@ import android.text.format.DateUtils;
 import android.view.HapticFeedbackConstants;
 import android.view.LayoutInflater;
 import android.view.View;
+import android.view.ViewGroup;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputMethodManager;
-import android.widget.AdapterView;
-import android.widget.ArrayAdapter;
+import android.widget.BaseAdapter;
 import android.widget.Button;
+import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.LinearLayout;
-import android.widget.Spinner;
+import android.widget.ListView;
 import android.widget.TextView;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 public class MainActivity extends Activity {
 
-    /** Sent by the widget's "clean new" button: clear the field and offer the clipboard. */
+    /** Sent by the widget: clear the field and offer the clipboard. */
     static final String ACTION_CLEAN_NEW = "app.numbercleaner.action.CLEAN_NEW";
 
     private static final String STATE_AUTO_PASTE = "auto_paste";
+    private static final String STATE_FORCED = "forced";
 
     private Store store;
-    private Country country;
-    private PhoneCleaner.Result current = PhoneCleaner.clean("", Country.NONE);
+    /** Default country for local numbers. */
+    private Country home;
+    /** Country the user picked for the number currently in the field (overrides guessing). */
+    private Country forced;
+    private PhoneCleaner.Result current;
 
     private EditText input;
     private ImageButton pasteButton;
     private ImageButton clearButton;
-    private Spinner countrySpinner;
+    private TextView countryButton;
     private TextView output;
+    private TextView meta;
     private TextView status;
+    private TextView fixView;
+    private TextView warningView;
+    private CheckBox includeCode;
+    private CheckBox includePlus;
     private Button copyButton;
     private ImageButton shareButton;
     private LinearLayout historyList;
     private TextView historyEmpty;
     private Button clearHistoryButton;
 
-    private final List<Country> spinnerItems = new ArrayList<>(); // null entry = "Custom code…"
-    private int spinnerSelection = -1;
     private boolean autoPastePending;
-    private AlertDialog customDialog;
+    private boolean flashTopRow;
+    private AlertDialog dialog;
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final Runnable resetCopyLabel = () -> copyButton.setText(R.string.copy);
 
@@ -63,27 +73,34 @@ public class MainActivity extends Activity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         store = new Store(this);
-        country = store.getCountry();
+        home = store.getCountry();
 
         input = findViewById(R.id.input);
         pasteButton = findViewById(R.id.paste);
         clearButton = findViewById(R.id.clear);
-        countrySpinner = findViewById(R.id.country);
+        countryButton = findViewById(R.id.country);
         output = findViewById(R.id.output);
+        meta = findViewById(R.id.meta);
         status = findViewById(R.id.status);
+        fixView = findViewById(R.id.fix);
+        warningView = findViewById(R.id.warning);
+        includeCode = findViewById(R.id.include_code);
+        includePlus = findViewById(R.id.include_plus);
         copyButton = findViewById(R.id.copy);
         shareButton = findViewById(R.id.share);
         historyList = findViewById(R.id.history_list);
         historyEmpty = findViewById(R.id.history_empty);
         clearHistoryButton = findViewById(R.id.clear_history);
 
-        // Phone keypad, but keep the plain text key listener so pasted text isn't filtered char-by-char
-        // (that would glue extension digits onto the number).
+        // Phone keypad, but keep the plain text key listener so pasted text isn't filtered char-by-char.
         input.setRawInputType(InputType.TYPE_CLASS_PHONE);
         input.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int a, int b, int c) { }
             @Override public void onTextChanged(CharSequence s, int a, int b, int c) { }
-            @Override public void afterTextChanged(Editable s) { refresh(); }
+            @Override public void afterTextChanged(Editable s) {
+                if (s.length() == 0) forced = null;   // a new number starts with auto-detection again
+                refresh();
+            }
         });
         input.setOnEditorActionListener((v, actionId, event) -> {
             if (actionId == EditorInfo.IME_ACTION_DONE) {
@@ -98,21 +115,33 @@ public class MainActivity extends Activity {
             input.setText("");
             showKeyboard();
         });
+        countryButton.setOnClickListener(v -> openCountryPicker());
+        meta.setOnClickListener(v -> openCountryPicker());
+
+        // Format options: restored from settings, not from view state.
+        includeCode.setSaveEnabled(false);
+        includePlus.setSaveEnabled(false);
+        includeCode.setChecked(store.includeCode());
+        includePlus.setChecked(store.includePlus());
+        includeCode.setOnCheckedChangeListener((b, checked) -> onFormatChanged());
+        includePlus.setOnCheckedChangeListener((b, checked) -> onFormatChanged());
+
         copyButton.setOnClickListener(v -> copyCurrent());
+        output.setOnClickListener(v -> copyCurrent());
         shareButton.setOnClickListener(v -> shareCurrent());
         clearHistoryButton.setOnClickListener(v -> confirmClearHistory());
-        output.setOnClickListener(v -> copyCurrent());
-
-        setupCountrySpinner();
-        renderHistory();
 
         if (savedInstanceState != null) {
             autoPastePending = savedInstanceState.getBoolean(STATE_AUTO_PASTE);
+            forced = Country.fromId(savedInstanceState.getString(STATE_FORCED));
         } else if ((getIntent().getFlags() & Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY) == 0) {
             // Reopened from Recents: don't replay an old share / "clean new" request.
             handleIntent(getIntent());
         }
+        renderCountryButton();
+        updatePlusEnabled();
         refresh();
+        renderHistory();
     }
 
     @Override
@@ -127,6 +156,7 @@ public class MainActivity extends Activity {
     protected void onSaveInstanceState(Bundle out) {
         super.onSaveInstanceState(out);
         out.putBoolean(STATE_AUTO_PASTE, autoPastePending);
+        if (forced != null) out.putString(STATE_FORCED, forced.id);
     }
 
     @Override
@@ -137,21 +167,34 @@ public class MainActivity extends Activity {
     }
 
     @Override
-    protected void onPause() {
-        super.onPause();
-        // Leaving with a good result counts as "cleaned", so the widget shows it.
-        if (isRememberable()) store.remember(current.number);
-    }
-
-    @Override
     protected void onResume() {
         super.onResume();
-        renderHistory();
+        // Settings may have changed in another window of the app (e.g. one opened via Share).
+        Country stored = store.getCountry();
+        if (stored != home) {
+            home = stored;
+            renderCountryButton();
+        }
+        if (includeCode.isChecked() != store.includeCode() || includePlus.isChecked() != store.includePlus()) {
+            includeCode.setOnCheckedChangeListener(null);
+            includePlus.setOnCheckedChangeListener(null);
+            includeCode.setChecked(store.includeCode());
+            includePlus.setChecked(store.includePlus());
+            includeCode.setOnCheckedChangeListener((b, checked) -> onFormatChanged());
+            includePlus.setOnCheckedChangeListener((b, checked) -> onFormatChanged());
+            updatePlusEnabled();
+        }
+        refresh();
+        renderHistory();   // the widget may have changed it
+    }
+
+    private boolean dialogOpen() {
+        return dialog != null && dialog.isShowing();
     }
 
     @Override
     protected void onDestroy() {
-        if (customDialog != null && customDialog.isShowing()) customDialog.dismiss();
+        if (dialog != null && dialog.isShowing()) dialog.dismiss();
         handler.removeCallbacks(resetCopyLabel);
         super.onDestroy();
     }
@@ -165,13 +208,17 @@ public class MainActivity extends Activity {
         } else if (Intent.ACTION_PROCESS_TEXT.equals(action)) {
             text = intent.getCharSequenceExtra(Intent.EXTRA_PROCESS_TEXT);
         } else if (ACTION_CLEAN_NEW.equals(action)) {
+            if (dialogOpen()) dialog.dismiss();   // auto-paste needs the window focus
             input.setText("");
             autoPastePending = true;
         }
-        if (text != null) {
-            input.setText(text);
-            input.setSelection(input.length());
-        }
+        if (text != null) setInput(text.toString());
+    }
+
+    private void setInput(String text) {
+        forced = null;
+        input.setText(text);
+        input.setSelection(input.length());
     }
 
     private void runAutoPaste() {
@@ -183,74 +230,116 @@ public class MainActivity extends Activity {
     /** @param explicit true when the user tapped Paste (always paste text), false for auto-paste. */
     private boolean pasteFromClipboard(boolean explicit) {
         String text = Clip.read(this);
-        // Auto-paste skips the number we copied ourselves — the user wants a *new* one.
-        boolean ownNumber = text != null && text.trim().equals(store.getLast());
-        if (text == null || (!explicit && (!Clip.looksLikeNumber(text) || ownNumber))) {
-            if (explicit) {
-                status.setText(R.string.clipboard_empty);
-                status.setTextColor(getColor(R.color.text_secondary));
-            }
+        if (text == null || text.trim().isEmpty()) {
+            if (explicit) showStatus(getString(R.string.clipboard_empty));
             return false;
         }
-        input.setText(text.trim());
-        input.setSelection(input.length());
+        if (!explicit) {
+            // Auto-paste only real numbers, and not the one we just copied — the user wants a new one.
+            String last = store.getLast();
+            boolean own = last != null && PhoneCleaner.clean(text, home).e164().equals(last);
+            if (!Clip.looksLikeNumber(text) || own) return false;
+        }
+        setInput(text.trim());
         return true;
     }
 
     // ---- Cleaning ----
 
+    private void onFormatChanged() {
+        updatePlusEnabled();
+        store.setFormat(includeCode.isChecked(), includePlus.isChecked());
+        refresh();
+        renderHistory();
+    }
+
+    private void updatePlusEnabled() {
+        // "+" only makes sense in front of a country code.
+        includePlus.setEnabled(includeCode.isChecked());
+        includePlus.setAlpha(includeCode.isChecked() ? 1f : 0.45f);
+    }
+
+    private String formatted() {
+        return current.format(includeCode.isChecked(), includePlus.isChecked());
+    }
+
     private void refresh() {
         String raw = input.getText().toString();
-        current = PhoneCleaner.clean(raw, country);
+        current = PhoneCleaner.clean(raw, home, forced);
         clearButton.setVisibility(raw.isEmpty() ? View.GONE : View.VISIBLE);
 
         boolean empty = current.isEmpty();
-        output.setText(empty ? getString(R.string.output_placeholder) : current.number);
+        String out = formatted();
+        output.setText(empty ? getString(R.string.output_placeholder) : out);
         output.setTextColor(getColor(empty ? R.color.text_hint : R.color.text_primary));
-        output.setContentDescription(empty ? null : getString(R.string.output_cd, spaced(current.number)));
+        output.setContentDescription(empty ? null : getString(R.string.output_cd, spaced(out)));
         copyButton.setEnabled(!empty);
         shareButton.setEnabled(!empty);
         shareButton.setAlpha(empty ? 0.38f : 1f);
 
-        if (raw.trim().isEmpty()) {
-            status.setText(R.string.status_hint);
-        } else if (current.warning != null) {
-            status.setText("⚠ " + current.warning);
+        // Country line: "🇨🇲 Cameroon · Mobile · from the number ▾"
+        Country c = current.country;
+        if (c != null) {
+            StringBuilder sb = new StringBuilder(c.flag()).append("  ").append(c.name);
+            if (current.lineType != null) sb.append(" · ").append(current.lineType);
+            if (current.detected && c != home) sb.append(" · ").append(getString(R.string.meta_detected));
+            else if (forced != null) sb.append(" · ").append(getString(R.string.meta_chosen));
+            sb.append("  ▾");
+            meta.setText(sb);
+            meta.setContentDescription(getString(R.string.meta_cd, sb.toString().replace("▾", "")));
+            meta.setVisibility(View.VISIBLE);
         } else {
-            status.setText(describe(current));
+            meta.setVisibility(View.GONE);
         }
-        status.setTextColor(getColor(current.warning != null ? R.color.warning : R.color.text_secondary));
+
+        status.setTextColor(getColor(R.color.text_secondary));
+        status.setText(raw.trim().isEmpty() ? getString(R.string.status_hint) : describe(out, raw.trim()));
+        setOptional(fixView, current.fix == null ? null : "✎  " + current.fix);
+        String warning = current.warning;
+        if (warning == null && !includeCode.isChecked() && current.kind == PhoneCleaner.Kind.UNKNOWN_CODE) {
+            warning = getString(R.string.warn_cant_drop_code);
+        }
+        setOptional(warningView, warning == null ? null : "⚠  " + warning);
     }
 
-    private String describe(PhoneCleaner.Result r) {
-        switch (r.kind) {
-            case EMPTY:
-                return getString(R.string.status_no_digits);
+    private String describe(String out, String raw) {
+        if (current.kind == PhoneCleaner.Kind.EMPTY) return getString(R.string.status_no_digits);
+        if (current.kind == PhoneCleaner.Kind.SHORT_CODE) return getString(R.string.status_short_code);
+        if (out.equals(raw)) return getString(R.string.status_already_clean);
+        String cc = current.country != null ? current.country.dialCode : "";
+        boolean withCode = includeCode.isChecked();
+        switch (current.kind) {
             case INTERNATIONAL:
-                return getString(r.unchanged ? R.string.status_already_clean : R.string.status_international);
+                return getString(withCode ? R.string.status_cleaned : R.string.status_code_removed, cc);
             case EXIT_CONVERTED:
-                return getString(R.string.status_exit_converted);
+                return getString(withCode ? R.string.status_exit_converted : R.string.status_code_removed, cc);
             case HAD_CODE:
-                return getString(R.string.status_had_code, country.dialCode);
-            case ADDED_CODE:
-                return getString(R.string.status_added_code, country.dialCode);
-            case DIGITS_ONLY:
-                return getString(R.string.status_digits_only);
-            case SHORT_CODE:
+                return getString(withCode ? R.string.status_had_code : R.string.status_code_removed, cc);
+            case DETECTED:
+                return getString(R.string.status_detected, cc);
+            case UNKNOWN_CODE:
+                return getString(R.string.status_cleaned, cc);
+            case LOCAL:
             default:
-                return getString(R.string.status_short_code);
+                return getString(withCode ? R.string.status_added_code : R.string.status_local, cc);
         }
     }
 
-    private boolean isRememberable() {
-        return current != null && !current.isEmpty() && current.warning == null
-                && current.kind != PhoneCleaner.Kind.SHORT_CODE;
+    private void showStatus(String text) {
+        status.setText(text);
+        status.setTextColor(getColor(R.color.text_secondary));
+    }
+
+    private static void setOptional(TextView v, String text) {
+        v.setText(text);
+        v.setVisibility(text == null ? View.GONE : View.VISIBLE);
     }
 
     private void copyCurrent() {
-        if (current.isEmpty()) return;
-        Clip.copy(this, current.number);
-        store.remember(current.number);
+        if (current == null || current.isEmpty()) return;
+        Clip.copy(this, formatted());
+        store.remember(current.e164());
+        flashTopRow = true;
         renderHistory();
         copyButton.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY);
         copyButton.setText(R.string.copied);
@@ -259,106 +348,110 @@ public class MainActivity extends Activity {
     }
 
     private void shareCurrent() {
-        if (current.isEmpty()) return;
-        store.remember(current.number);
+        if (current == null || current.isEmpty()) return;
+        store.remember(current.e164());
+        flashTopRow = true;
         renderHistory();
         Intent send = new Intent(Intent.ACTION_SEND)
                 .setType("text/plain")
-                .putExtra(Intent.EXTRA_TEXT, current.number);
+                .putExtra(Intent.EXTRA_TEXT, formatted());
         startActivity(Intent.createChooser(send, getString(R.string.share)));
     }
 
-    // ---- Country selector ----
+    // ---- Country picker ----
 
-    private void setupCountrySpinner() {
-        // The selection is derived from the stored country; don't let state restore re-select "Custom code…".
-        countrySpinner.setSaveEnabled(false);
-        rebuildSpinnerItems();
-        countrySpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-            @Override
-            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                if (position == spinnerSelection) return;
-                Country picked = spinnerItems.get(position);
-                if (picked == null) {
-                    askCustomCode();
-                } else {
-                    selectCountry(picked);
-                }
+    private void renderCountryButton() {
+        countryButton.setText(home.flag() + "  " + home.name + "  +" + home.dialCode);
+        countryButton.setContentDescription(getString(R.string.country_button_cd, home.name, home.dialCode));
+    }
+
+    private void openCountryPicker() {
+        if (dialogOpen()) return;
+        View view = LayoutInflater.from(this).inflate(R.layout.dialog_country, null);
+        EditText search = view.findViewById(R.id.search);
+        ListView list = view.findViewById(R.id.list);
+        list.getLayoutParams().height = (int) (getResources().getDisplayMetrics().heightPixels * 0.5f);
+
+        Country selected = current != null && current.country != null && !input.getText().toString().isEmpty()
+                ? current.country : home;
+        CountryAdapter adapter = new CountryAdapter(selected);
+        list.setAdapter(adapter);
+        int pos = adapter.indexOf(selected);
+        if (pos > 2) list.setSelection(pos - 2);
+
+        search.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int a, int b, int c) { }
+            @Override public void onTextChanged(CharSequence s, int a, int b, int c) { }
+            @Override public void afterTextChanged(Editable s) {
+                adapter.filter(s.toString());
+                list.setSelection(0);
             }
-
-            @Override
-            public void onNothingSelected(AdapterView<?> parent) { }
         });
-    }
 
-    private void rebuildSpinnerItems() {
-        spinnerItems.clear();
-        spinnerItems.add(Country.NONE);
-        spinnerItems.addAll(Country.all());
-        if (country.isCustom()) spinnerItems.add(country);
-        spinnerItems.add(null);
-
-        List<String> labels = new ArrayList<>();
-        for (Country c : spinnerItems) labels.add(c == null ? getString(R.string.custom_code) : c.label());
-        ArrayAdapter<String> adapter = new ArrayAdapter<>(this, R.layout.spinner_item, labels);
-        adapter.setDropDownViewResource(R.layout.spinner_dropdown_item);
-        countrySpinner.setAdapter(adapter);
-
-        int index = 0;
-        for (int i = 0; i < spinnerItems.size(); i++) {
-            Country c = spinnerItems.get(i);
-            if (c != null && c.id.equals(country.id)) index = i;
-        }
-        spinnerSelection = index;
-        countrySpinner.setSelection(index, false);
-    }
-
-    private void selectCountry(Country c) {
-        country = c;
-        store.setCountry(c);
-        rebuildSpinnerItems();
-        refresh();
-    }
-
-    private void askCustomCode() {
-        View view = LayoutInflater.from(this).inflate(R.layout.dialog_custom_code, null);
-        EditText field = view.findViewById(R.id.code);
-        if (country.isCustom()) field.setText(country.dialCode);
-
-        final boolean[] accepted = {false};
-        AlertDialog dialog = new AlertDialog.Builder(this)
-                .setTitle(R.string.custom_code_title)
+        dialog = new AlertDialog.Builder(this)
+                .setTitle(R.string.picker_title)
                 .setView(view)
-                .setPositiveButton(R.string.use_code, null)
-                .setNegativeButton(android.R.string.cancel, (d, w) -> {})
+                .setNegativeButton(android.R.string.cancel, null)
                 .create();
-        dialog.setOnDismissListener(d -> {
-            // Cancelled: put the selector back on the previous choice.
-            if (!accepted[0] && spinnerSelection >= 0) countrySpinner.setSelection(spinnerSelection, false);
+        list.setOnItemClickListener((parent, v, position, id) -> {
+            pickCountry(adapter.getItem(position));
+            dialog.dismiss();
         });
-        dialog.setOnShowListener(d -> {
-            field.requestFocus();
-            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(b -> {
-                String digits = PhoneCleaner.digitsOf(field.getText().toString());
-                if (!Country.isValidCode(digits)) {
-                    field.setError(getString(R.string.custom_code_error));
-                    return;
-                }
-                accepted[0] = true;
-                dialog.dismiss();
-                Country known = null;
-                for (Country c : Country.all()) {
-                    if (c.dialCode.equals(digits)) { known = c; break; }
-                }
-                selectCountry(known != null ? known : Country.custom(digits));
-            });
-        });
-        customDialog = dialog;
-        if (dialog.getWindow() != null) {
-            dialog.getWindow().setSoftInputMode(
-                    android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE);
-        }
         dialog.show();
+    }
+
+    private void pickCountry(Country c) {
+        home = c;
+        store.setCountry(c);
+        // Applies to the number in the field too, overriding any guess.
+        forced = input.length() > 0 ? c : null;
+        renderCountryButton();
+        refresh();
+        renderHistory();
+        NumberWidget.updateAll(this);
+    }
+
+    /** Searchable country list: matches name, ISO code or dialling code ("237", "+237"). */
+    private final class CountryAdapter extends BaseAdapter {
+        private final Country selected;
+        private final List<Country> items = new ArrayList<>(Country.all());
+
+        CountryAdapter(Country selected) {
+            this.selected = selected;
+        }
+
+        void filter(String query) {
+            String q = query.trim().toLowerCase(Locale.ROOT);
+            String digits = PhoneCleaner.digitsOf(q);
+            items.clear();
+            for (Country c : Country.all()) {
+                boolean match = q.isEmpty()
+                        || (!digits.isEmpty() && c.dialCode.startsWith(digits))
+                        || c.name.toLowerCase(Locale.ROOT).contains(q)
+                        || c.id.equalsIgnoreCase(q);
+                if (match) items.add(c);
+            }
+            notifyDataSetChanged();
+        }
+
+        int indexOf(Country c) {
+            return items.indexOf(c);
+        }
+
+        @Override public int getCount() { return items.size(); }
+        @Override public Country getItem(int position) { return items.get(position); }
+        @Override public long getItemId(int position) { return position; }
+
+        @Override
+        public View getView(int position, View convertView, ViewGroup parent) {
+            View row = convertView != null ? convertView
+                    : LayoutInflater.from(MainActivity.this).inflate(R.layout.item_country, parent, false);
+            Country c = items.get(position);
+            ((TextView) row.findViewById(R.id.country_name)).setText(c.flag() + "   " + c.name);
+            ((TextView) row.findViewById(R.id.country_code)).setText("+" + c.dialCode);
+            row.findViewById(R.id.country_check).setVisibility(c == selected ? View.VISIBLE : View.INVISIBLE);
+            return row;
+        }
     }
 
     // ---- History ----
@@ -368,31 +461,38 @@ public class MainActivity extends Activity {
         historyList.removeAllViews();
         List<Store.Entry> entries = store.getHistory();
         historyEmpty.setVisibility(entries.isEmpty() ? View.VISIBLE : View.GONE);
+        historyList.setVisibility(entries.isEmpty() ? View.GONE : View.VISIBLE);
         clearHistoryButton.setVisibility(entries.isEmpty() ? View.GONE : View.VISIBLE);
 
+        boolean withCode = includeCode.isChecked();
+        boolean withPlus = includePlus.isChecked();
         LayoutInflater inflater = LayoutInflater.from(this);
         long now = System.currentTimeMillis();
-        for (Store.Entry e : entries) {
+        for (int i = 0; i < entries.size(); i++) {
+            Store.Entry e = entries.get(i);
+            PhoneCleaner.Result r = PhoneCleaner.clean(e.number, home);
+            String shown = r.format(withCode, withPlus);
+
             View row = inflater.inflate(R.layout.item_history, historyList, false);
             TextView number = row.findViewById(R.id.history_number);
-            TextView time = row.findViewById(R.id.history_time);
+            TextView detail = row.findViewById(R.id.history_time);
             ImageButton copy = row.findViewById(R.id.history_copy);
 
-            number.setText(e.number);
-            time.setText(DateUtils.getRelativeTimeSpanString(e.time, now, DateUtils.MINUTE_IN_MILLIS));
-            copy.setContentDescription(getString(R.string.copy_number_cd, e.number));
+            number.setText(shown);
+            CharSequence when = DateUtils.getRelativeTimeSpanString(e.time, now, DateUtils.MINUTE_IN_MILLIS);
+            detail.setText(r.country != null ? r.country.flag() + " " + r.country.name + " · " + when : when);
+            copy.setContentDescription(getString(R.string.copy_number_cd, shown));
             copy.setOnClickListener(v -> {
-                Clip.copy(this, e.number);
+                Clip.copy(this, shown);
                 store.remember(e.number);
+                flashTopRow = true;
                 renderHistory();
             });
-            row.setOnClickListener(v -> {
-                input.setText(e.number);
-                input.setSelection(input.length());
-            });
+            row.setOnClickListener(v -> setInput(e.number));
             row.setOnLongClickListener(v -> {
-                new AlertDialog.Builder(this)
-                        .setMessage(getString(R.string.remove_one, e.number))
+                if (dialogOpen()) return true;
+                dialog = new AlertDialog.Builder(this)
+                        .setMessage(getString(R.string.remove_one, shown))
                         .setPositiveButton(R.string.remove, (d, w) -> {
                             store.remove(e.number);
                             renderHistory();
@@ -401,12 +501,18 @@ public class MainActivity extends Activity {
                         .show();
                 return true;
             });
+            if (i == 0 && flashTopRow) {
+                row.setAlpha(0.2f);
+                row.animate().alpha(1f).setDuration(450).start();
+            }
             historyList.addView(row);
         }
+        flashTopRow = false;
     }
 
     private void confirmClearHistory() {
-        new AlertDialog.Builder(this)
+        if (dialogOpen()) return;
+        dialog = new AlertDialog.Builder(this)
                 .setMessage(R.string.clear_history_confirm)
                 .setPositiveButton(R.string.clear, (d, w) -> {
                     store.clearHistory();

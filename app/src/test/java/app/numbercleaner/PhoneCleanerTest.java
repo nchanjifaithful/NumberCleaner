@@ -17,41 +17,126 @@ public class PhoneCleanerTest {
     private static final Country IT = Country.byIso("IT");
     private static final Country RU = Country.byIso("RU");
 
-    private static String clean(String in, Country c) {
-        return PhoneCleaner.clean(in, c).number;
+    private static PhoneCleaner.Result r(String in, Country home) {
+        return PhoneCleaner.clean(in, home);
     }
 
-    @Test
-    public void addsCountryCodeToLocalNumber() {
-        assertEquals("+237677123456", clean("677 12 34 56", CM));
-        assertEquals("+237677123456", clean("677-12-34-56", CM));
-        assertEquals("+237222234567", clean("(222) 23.45.67", CM));
-        assertEquals(PhoneCleaner.Kind.ADDED_CODE, PhoneCleaner.clean("677123456", CM).kind);
+    private static String clean(String in, Country home) {
+        return r(in, home).e164();
     }
 
-    @Test
-    public void keepsInternationalNumbersAndPlus() {
-        assertEquals("+237677123456", clean("+237 677 12 34 56", CM));
-        assertEquals("+237677123456", clean("(+237) 677-12-34-56", CM));
-        assertEquals("+447946095800", clean("+44 7946 095800", CM)); // different country stays as typed
-        assertEquals(PhoneCleaner.Kind.INTERNATIONAL, PhoneCleaner.clean("+44 7946 095800", CM).kind);
-    }
+    // ---- The ART / Cameroon guidelines ----
 
     @Test
-    public void doesNotDuplicateExistingCode() {
+    public void cameroonGuidelines() {
+        // 1. Remove formatting (local format)
+        assertEquals("677123456", r("677 12 34 56", CM).format(false, true));
+        // 2. Add the country code
+        assertEquals("+237677123456", clean("677123456", CM));
+        // 3. Avoid duplication
+        assertEquals("+237677123456", clean("+237 677 123 456", CM));
         assertEquals("+237677123456", clean("237 677 12 34 56", CM));
-        assertEquals("+237677123456", clean("237677123456", CM));
-        assertEquals(PhoneCleaner.Kind.HAD_CODE, PhoneCleaner.clean("237677123456", CM).kind);
-        assertEquals("+2348031234567", clean("234 803 123 4567", NG));
-        assertEquals("+15551234567", clean("1 (555) 123-4567", US));
+        // 5. Validate length: warn, don't change
+        PhoneCleaner.Result tooLong = r("6771234567", CM);
+        assertNotNull(tooLong.warning);
+        assertEquals("+2376771234567", tooLong.e164());
+        assertNotNull(r("+237 6771 2345", CM).warning);
+        PhoneCleaner.Result shortWithCode = r("237 699 1234", CM);   // code typed, digits missing
+        assertEquals("+2376991234", shortWithCode.e164());           // not "+237237…"
+        assertNotNull(shortWithCode.warning);
+        // 6. Fixed lines
+        PhoneCleaner.Result fixed = r("222 12 34 56", CM);
+        assertEquals("+237222123456", fixed.e164());
+        assertEquals("Fixed line", fixed.lineType);
+        assertNull(fixed.warning);
+        assertEquals("Mobile", r("699 12 34 56", CM).lineType);
     }
 
     @Test
-    public void localNumberThatHappensToStartWithCodeDigitsIsNotTreatedAsCoded() {
-        // Italian mobiles can begin with 39; 10 digits is a valid national number on its own.
-        assertEquals("+393921234567", clean("392 123 4567", IT));
-        assertEquals("+393921234567", clean("39 392 123 4567", IT));
+    public void cameroonMissingSix() {
+        PhoneCleaner.Result a = r("237 77 12 34 56", CM);          // 237 + old 8-digit mobile
+        assertEquals("+237677123456", a.e164());
+        assertNotNull(a.fix);
+        assertNull(a.warning);
+        assertEquals("+237699123456", clean("+237 99 12 34 56", CM));
+        assertEquals("+237677123456", clean("77 12 34 56", CM)); // local old format
+        assertEquals("+237677123456", clean("0023777123456", NG)); // via 00, other home country
+        assertEquals("+237222123456", clean("+237 22 12 34 56", CM)); // old fixed line → 2
+        assertEquals("+237233123456", clean("+237 33 12 34 56", CM));
+        // 8 digits starting with 6 is a truncated new number: warn, don't guess.
+        PhoneCleaner.Result trunc = r("+237 67712345", CM);
+        assertNull(trunc.fix);
+        assertNotNull(trunc.warning);
     }
+
+    @Test
+    public void cameroonWrongPrefixWarns() {
+        assertNotNull(r("+237 512345678", CM).warning);
+    }
+
+    // ---- Output formats ----
+
+    @Test
+    public void formats() {
+        PhoneCleaner.Result x = r("(+237) 677-12-34-56", CM);
+        assertEquals("+237677123456", x.format(true, true));
+        assertEquals("237677123456", x.format(true, false));
+        assertEquals("677123456", x.format(false, true));
+        assertEquals("677123456", x.format(false, false));
+        // Local format keeps the trunk prefix where the country uses one
+        assertEquals("08031234567", r("+234 803 123 4567", CM).format(false, true));
+        assertEquals("02079460958", r("+44 20 7946 0958", CM).format(false, true));
+        assertEquals("5551234567", r("+1 555 123 4567", CM).format(false, true));
+        // Unknown code can't be stripped
+        assertEquals("+99912345678", r("+999 1234 5678", CM).format(false, true));
+        assertFalse(r("+999 1234 5678", CM).canDropCode());
+    }
+
+    // ---- Country detection ----
+
+    @Test
+    public void detectsCountryFromPlus() {
+        PhoneCleaner.Result x = r("+44 7946 095800", CM);
+        assertEquals("GB", x.country.id);
+        assertTrue(x.detected);
+        assertEquals("NG", r("+2348031234567", CM).country.id);
+        assertEquals("JM", r("+1 876 555 1234", CM).country.id);
+        assertEquals("US", r("+1 212 555 1234", CM).country.id);
+        assertEquals("CA", r("+1 416 555 1234", Country.byIso("CA")).country.id); // shared code → home
+        assertEquals("KZ", r("+7 701 123 4567", CM).country.id);
+        assertEquals("RU", r("+7 916 123 4567", CM).country.id);
+        assertEquals("CM", r("+237677123456", NG).country.id);
+    }
+
+    @Test
+    public void detectsCountryWithoutPlus() {
+        PhoneCleaner.Result x = r("447946095800", CM);
+        assertEquals("GB", x.country.id);
+        assertEquals(PhoneCleaner.Kind.DETECTED, x.kind);
+        assertEquals("+447946095800", x.e164());
+        assertEquals("+2348031234567", clean("2348031234567", CM));
+        assertEquals("+33612345678", clean("33612345678", CM));
+        assertEquals("+237677123456", clean("237677123456", NG));
+    }
+
+    @Test
+    public void homeCountryWinsForLocalNumbers() {
+        assertEquals("+237677123456", clean("677123456", CM));
+        assertEquals(PhoneCleaner.Kind.LOCAL, r("677123456", CM).kind);
+        assertFalse(r("677123456", CM).detected);
+    }
+
+    @Test
+    public void forcedCountryOverridesGuess() {
+        // Without forcing, 11 digits starting 33 look French; forced to Nigeria it's a local number.
+        assertEquals("FR", r("33612345678", CM).country.id);
+        PhoneCleaner.Result f = PhoneCleaner.clean("08031234567", CM, NG);
+        assertEquals("+2348031234567", f.e164());
+        // "+" numbers keep their own code even when a country is forced
+        assertEquals("GB", PhoneCleaner.clean("+44 20 7946 0958", CM, NG).country.id);
+    }
+
+    // ---- General cleaning (from v1) ----
 
     @Test
     public void dropsTrunkPrefix() {
@@ -59,23 +144,25 @@ public class PhoneCleanerTest {
         assertEquals("+442079460958", clean("020 7946 0958", GB));
         assertEquals("+79161234567", clean("8 (916) 123-45-67", RU));
         assertEquals("+15551234567", clean("(555) 123-4567", US));
-    }
-
-    @Test
-    public void italyKeepsLeadingZero() {
+        assertEquals("+15551234567", clean("1 (555) 123-4567", US));
         assertEquals("+390612345678", clean("06 1234 5678", IT));
+        assertEquals("+393921234567", clean("39 392 123 4567", IT));
+        assertEquals("+393921234567", clean("392 123 4567", IT));
     }
 
     @Test
-    public void convertsInternationalCallPrefix() {
+    public void removesExtraZeroAfterCode() {
+        PhoneCleaner.Result x = r("+234 0803 123 4567", CM);
+        assertEquals("+2348031234567", x.e164());
+        assertNotNull(x.fix);
+        assertEquals("+442079460958", clean("+44 (0)20 7946 0958", CM));
+    }
+
+    @Test
+    public void internationalPrefix() {
         assertEquals("+237677123456", clean("00237 677 12 34 56", CM));
         assertEquals("+442079460958", clean("011 44 20 7946 0958", US));
-        assertEquals(PhoneCleaner.Kind.EXIT_CONVERTED, PhoneCleaner.clean("00 44 20 7946 0958", CM).kind);
-    }
-
-    @Test
-    public void removesBracketedTrunkZeroInInternationalFormat() {
-        assertEquals("+442079460958", clean("+44 (0)20 7946 0958", CM));
+        assertEquals(PhoneCleaner.Kind.EXIT_CONVERTED, r("00 44 20 7946 0958", CM).kind);
     }
 
     @Test
@@ -85,69 +172,36 @@ public class PhoneCleanerTest {
         assertEquals("+15551234567", clean("(555) 123-4567 ext. 89", US));
         assertEquals("+15551234567", clean("555.123.4567 x89", US));
         assertEquals("+237677123456", clean("   +237‑677 12 34 56\n", CM));
-    }
-
-    @Test
-    public void fullWidthAndArabicDigits() {
         assertEquals("+237677123456", clean("＋２３７ ６７７ １２ ３４ ５６", CM));
         assertEquals("+237677123456", clean("+٢٣٧٦٧٧١٢٣٤٥٦", CM));
     }
 
     @Test
-    public void noCountryCodeMeansDigitsOnly() {
-        PhoneCleaner.Result r = PhoneCleaner.clean("677 12 34 56", Country.NONE);
-        assertEquals("677123456", r.number);
-        assertEquals(PhoneCleaner.Kind.DIGITS_ONLY, r.kind);
-        assertEquals("+237677123456", clean("+237 677 12 34 56", Country.NONE));
-    }
-
-    @Test
-    public void shortCodesAreLeftAlone() {
+    public void shortCodesAndEmpty() {
         assertEquals("112", clean("112", CM));
-        assertEquals("8100", clean("8100", CM));
-        assertEquals(PhoneCleaner.Kind.SHORT_CODE, PhoneCleaner.clean("117", CM).kind);
+        assertEquals(PhoneCleaner.Kind.SHORT_CODE, r("8100", CM).kind);
+        assertTrue(r("", CM).isEmpty());
+        assertTrue(r("  - () ", CM).isEmpty());
+        assertTrue(r(null, CM).isEmpty());
+        assertTrue(r("hello", CM).isEmpty());
     }
 
     @Test
-    public void alreadyCleanIsReportedUnchanged() {
-        assertTrue(PhoneCleaner.clean("+237677123456", CM).unchanged);
-        assertTrue(PhoneCleaner.clean(" +237677123456 ", CM).unchanged);
-        assertFalse(PhoneCleaner.clean("+237 677123456", CM).unchanged);
+    public void tooLongWarns() {
+        assertNotNull(r("+1234567890123456", CM).warning);
     }
 
     @Test
-    public void emptyInput() {
-        assertTrue(PhoneCleaner.clean("", CM).isEmpty());
-        assertTrue(PhoneCleaner.clean("  - () ", CM).isEmpty());
-        assertTrue(PhoneCleaner.clean(null, CM).isEmpty());
-        assertTrue(PhoneCleaner.clean("hello", CM).isEmpty());
-    }
-
-    @Test
-    public void warnings() {
-        assertNull(PhoneCleaner.clean("677 12 34 56", CM).warning);
-        assertNotNull(PhoneCleaner.clean("677 12 34", CM).warning);          // 7 digits, Cameroon needs 9
-        assertNotNull(PhoneCleaner.clean("+1234567890123456", CM).warning);  // > 15 digits
-        assertNotNull(PhoneCleaner.clean("+12345", CM).warning);             // too short
-    }
-
-    @Test
-    public void customCode() {
-        Country jm = Country.custom("1876");
-        assertEquals("+18765551234", clean("555 1234", jm)); // 7-digit local
-        assertEquals("+2347012345678", clean("07012345678", Country.custom("234")));
-        assertEquals("+2347012345678", clean("2347012345678", Country.custom("234")));
-        assertTrue(Country.isValidCode("237"));
-        assertFalse(Country.isValidCode("0237"));
-        assertFalse(Country.isValidCode("12345"));
-    }
-
-    @Test
-    public void countryIds() {
+    public void countryTable() {
         assertEquals(CM, Country.fromId("CM"));
-        assertEquals(Country.NONE, Country.fromId("NONE"));
-        assertEquals("1876", Country.fromId("CUSTOM:1876").dialCode);
-        assertNull(Country.fromId("XX"));
+        assertNull(Country.fromId("NONE"));
+        assertNull(Country.fromId("CUSTOM:1876"));
         assertEquals("🇨🇲", CM.flag());
+        assertTrue(Country.all().size() > 180);
+        // Every entry parses to sane values
+        for (Country c : Country.all()) {
+            assertTrue(c.id, c.dialCode.matches("[1-9][0-9]{0,3}"));
+            assertTrue(c.id, c.minLen <= c.maxLen);
+        }
     }
 }

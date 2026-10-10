@@ -23,6 +23,16 @@
         <item name="android:textColorPrimary">@color/text_primary</item>
     </style>
 
+    <!-- Invisible activity used by the widget / launcher shortcut to read the clipboard. -->
+    <style name="Theme.NumberCleaner.Invisible" parent="android:Theme.Translucent.NoTitleBar">
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowAnimationStyle">@null</item>
+        <item name="android:windowContentOverlay">@null</item>
+        <item name="android:backgroundDimEnabled">false</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+    </style>
+
     <style name="Label">
         <item name="android:textSize">13sp</item>
         <item name="android:fontFamily">sans-serif-medium</item>

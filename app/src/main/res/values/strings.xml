@@ -1,21 +1,24 @@
 <resources>
     <string name="app_name">Number Cleaner</string>
-    <string name="tagline">Paste any phone number. Get a clean one.</string>
     <string name="clean_number_action">Clean number</string>
-    <string name="input_label">Phone number</string>
+    <string name="input_label">Paste or type a number</string>
     <string name="input_hint">e.g. (+237) 677-12-34-56</string>
     <string name="paste">Paste</string>
     <string name="clear_input">Clear</string>
-    <string name="country_label">Default country code</string>
-    <string name="country_help">Added to local numbers. Numbers that already have a code are left alone.</string>
-    <string name="custom_code">Custom code…</string>
-    <string name="custom_code_title">Country code</string>
-    <string name="custom_code_hint">e.g. 237</string>
-    <string name="custom_code_error">Enter 1–4 digits</string>
-    <string name="use_code">Use</string>
+
+    <string name="country_label">Local numbers are from</string>
+    <string name="country_button_cd">Country for local numbers: %1$s, plus %2$s. Tap to change.</string>
+    <string name="picker_title">Choose country</string>
+    <string name="picker_search">Search country or code</string>
+    <string name="meta_detected">from the number</string>
+    <string name="meta_chosen">chosen</string>
+    <string name="meta_cd">Country: %1$s. Tap to change.</string>
+
     <string name="output_label">Cleaned number</string>
     <string name="output_placeholder">—</string>
     <string name="output_cd">Cleaned number %1$s. Tap to copy.</string>
+    <string name="include_code">Country code</string>
+    <string name="include_plus">Leading +</string>
     <string name="copy">Copy</string>
     <string name="copied">Copied ✓</string>
     <string name="copied_toast">Copied %1$s</string>
@@ -25,25 +28,35 @@
 
     <string name="status_hint">Spaces, dashes and brackets are removed as you type.</string>
     <string name="status_no_digits">No digits found</string>
-    <string name="status_already_clean">Already clean ✓</string>
-    <string name="status_international">International number — kept its own code</string>
-    <string name="status_exit_converted">International prefix converted to +</string>
-    <string name="status_had_code">Already had +%1$s — not added twice</string>
-    <string name="status_added_code">Added +%1$s</string>
-    <string name="status_digits_only">Digits only — no country code selected</string>
-    <string name="status_short_code">Short code — left as is</string>
+    <string name="status_already_clean">Already in this format ✓</string>
+    <string name="status_cleaned">Formatting removed</string>
+    <string name="status_exit_converted">00 / international prefix replaced with +</string>
+    <string name="status_had_code">+%1$s was already there, not added twice</string>
+    <string name="status_added_code">Local number, +%1$s added</string>
+    <string name="status_local">Local format, no country code</string>
+    <string name="status_code_removed">+%1$s removed for local format</string>
+    <string name="status_detected">Recognised +%1$s at the start</string>
+    <string name="status_short_code">Short code, left as is</string>
+    <string name="warn_cant_drop_code">Unknown country, so the code was kept</string>
 
     <string name="recent">Recent</string>
     <string name="clear">Clear</string>
     <string name="remove">Remove</string>
-    <string name="history_empty">Numbers you copy or share will show up here.</string>
+    <string name="history_empty">Numbers you copy show up here.</string>
     <string name="clear_history_confirm">Clear all recent numbers?</string>
     <string name="remove_one">Remove %1$s from recent?</string>
     <string name="copy_number_cd">Copy %1$s</string>
 
-    <string name="widget_name">Last cleaned number</string>
-    <string name="widget_description">Copy your last cleaned number or clean a new one.</string>
-    <string name="widget_label">Last cleaned</string>
-    <string name="widget_empty">Tap ✎ to clean a number</string>
-    <string name="widget_new_cd">Clean a new number</string>
+    <string name="widget_name">Number Cleaner</string>
+    <string name="widget_description">Clean the number on your clipboard in one tap, or copy a recent one.</string>
+    <string name="widget_label">Last copied</string>
+    <string name="widget_empty">Copy a number, then tap ✨</string>
+    <string name="widget_clean_cd">Clean the number on the clipboard</string>
+    <string name="widget_open_cd">Open Number Cleaner</string>
+    <string name="widget_no_more">More recent numbers appear here</string>
+
+    <string name="quick_copied">Cleaned and copied: %1$s</string>
+    <string name="quick_copied_warn">Copied %1$s, but check it: %2$s</string>
+    <string name="shortcut_clean_short">Clean clipboard</string>
+    <string name="shortcut_clean_long">Clean the copied number</string>
 </resources>

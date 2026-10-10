@@ -12,7 +12,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
-/** Small SharedPreferences-backed store: selected country, recent numbers, last cleaned number. */
+/**
+ * SharedPreferences-backed settings and history.
+ * History stores canonical E.164 numbers; they are shown and copied in the current output format.
+ */
 public final class Store {
 
     public static final int MAX_HISTORY = 15;
@@ -20,6 +23,8 @@ public final class Store {
     private static final String PREFS = "number_cleaner";
     private static final String KEY_COUNTRY = "country";
     private static final String KEY_HISTORY = "history";
+    private static final String KEY_INCLUDE_CODE = "include_code";
+    private static final String KEY_INCLUDE_PLUS = "include_plus";
 
     public static final class Entry {
         public final String number;
@@ -60,7 +65,7 @@ public final class Store {
                 candidates.add(tm.getNetworkCountryIso());  // no permission required
             }
         } catch (RuntimeException ignored) {
-            // Some devices without telephony throw; fall through to locale.
+            // Devices without telephony may throw; fall through to locale.
         }
         candidates.add(Locale.getDefault().getCountry());
         for (String iso : candidates) {
@@ -68,6 +73,31 @@ public final class Store {
             if (c != null) return c;
         }
         return Country.byIso("CM");
+    }
+
+    // ---- Output format ----
+
+    public boolean includeCode() {
+        return prefs.getBoolean(KEY_INCLUDE_CODE, true);
+    }
+
+    public boolean includePlus() {
+        return prefs.getBoolean(KEY_INCLUDE_PLUS, true);
+    }
+
+    public void setFormat(boolean includeCode, boolean includePlus) {
+        prefs.edit().putBoolean(KEY_INCLUDE_CODE, includeCode).putBoolean(KEY_INCLUDE_PLUS, includePlus).commit();
+        NumberWidget.updateAll(app);
+    }
+
+    /** Parses a stored number again (to know its country). */
+    public PhoneCleaner.Result parse(String stored) {
+        return PhoneCleaner.clean(stored, getCountry());
+    }
+
+    /** A stored number in the current output format — what Copy puts on the clipboard. */
+    public String display(String stored) {
+        return parse(stored).format(includeCode(), includePlus());
     }
 
     // ---- History ----
@@ -86,17 +116,16 @@ public final class Store {
         return out;
     }
 
-    /** Most recent cleaned number, or null. */
+    /** Most recent number (canonical form), or null. */
     public String getLast() {
         List<Entry> h = getHistory();
         return h.isEmpty() ? null : h.get(0).number;
     }
 
-    /** Adds (or moves) a number to the top of history. Returns true if anything changed. */
-    public boolean remember(String number) {
-        if (number == null || number.isEmpty()) return false;
+    /** Puts a number at the top of history (moving it if already there) and refreshes the widget. */
+    public void remember(String number) {
+        if (number == null || number.isEmpty()) return;
         List<Entry> h = getHistory();
-        if (!h.isEmpty() && h.get(0).number.equals(number)) return false;
         for (int i = h.size() - 1; i >= 0; i--) {
             if (h.get(i).number.equals(number)) h.remove(i);
         }
@@ -104,7 +133,6 @@ public final class Store {
         while (h.size() > MAX_HISTORY) h.remove(h.size() - 1);
         save(h);
         NumberWidget.updateAll(app);
-        return true;
     }
 
     public void remove(String number) {
@@ -117,7 +145,7 @@ public final class Store {
     }
 
     public void clearHistory() {
-        prefs.edit().remove(KEY_HISTORY).apply();
+        prefs.edit().remove(KEY_HISTORY).commit();
         NumberWidget.updateAll(app);
     }
 

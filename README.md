@@ -1,49 +1,46 @@
 # Number Cleaner
 
-A tiny Android app (about 60 KB, no permissions, no third-party libraries) that turns messy phone numbers into clean, copy-ready ones.
+A tiny Android app (about 80 KB, no permissions, no third-party libraries) that turns messy phone numbers into clean, copy-ready ones.
 
-`(+237) 677-12-34-56` → `+237677123456`
+`(+237) 677-12-34-56` → `+237677123456`, `237677123456` or `677123456`, depending on the format you choose.
 
 ## Features
 
-- **Live cleaning.** Spaces, dashes, dots, brackets, labels ("Phone:", "tel:") and extensions ("ext. 22", "x22") are removed as you type.
-- **Default country code.** Choose one of about 50 countries, enter a custom code, or pick "No country code". The first-run default comes from the SIM, then the network, then the device locale, then Cameroon.
-  - Local numbers get the code. The trunk prefix is dropped where the country uses one: `0803…` → `+234803…`, `8 916…` → `+7916…`. Italy keeps its leading 0.
-  - Numbers that already have the code typed without "+" are not doubled: `237 677 12 34 56` → `+237677123456`.
-  - `00…` / `011…` international prefixes become `+`.
-- **Smart formatting.** A leading `+` is always kept and the number's own country code is never touched. A stray `(0)` in `+44 (0)20…` is removed. Short codes like `112` are left alone. A status line says what changed, or "Already clean ✓".
-- **One-tap copy** with the big Copy button, or tap the number itself. There is also a Share button.
-- **Recent history.** The last 15 numbers you copied or shared. Tap a row to reload it, use the copy icon to copy it, long-press to remove one, or use Clear to remove them all.
-- **Home-screen widget.** Shows the last cleaned number, with a copy button and a ✎ shortcut. The shortcut opens the app with an empty field and pastes the clipboard if it holds a new number.
-- **Extras.** Share a number into the app, or select a number in any app and choose **Clean number** from the text-selection menu.
-- **Design.** Light and dark mode, with Material You wallpaper colours on Android 12+. Supports TalkBack: the number is read digit by digit.
+- **Live cleaning.** Spaces, dashes, dots, brackets, labels ("Phone:", "tel:") and extensions are removed as you type.
+- **Output format.** Two checkboxes control what gets copied:
+  - **Country code** off gives local format: `677123456`, or `08031234567` for Nigeria, which keeps its leading 0.
+  - **Leading +** off gives `237677123456`.
+- **Automatic country detection.**
+  - A number with `+` or `00` is always read from its own code: 🇬🇧 for +44, 🇯🇲 for +1 876, 🇰🇿 for +7 7…, and so on.
+  - Without `+`, the number is first tried as a local number of your country. If it can't be one, a long number such as `447946095800` is recognised as another country's.
+  - Tap the country line under the result to pick a different country. The picker covers about 200 countries and you can search by name or code.
+- **Cameroon rules** (ART numbering plan, 9 digits after +237):
+  - The code is never added twice: `237 677 12 34 56` → `+237677123456`.
+  - Old 8-digit numbers get the missing digit: mobiles get a **6** (`237 77 12 34 56` → `+237677123456`), fixed lines get a **2** (`22 12 34 56` → `+237222123456`). The app always shows a ✎ note when it does this.
+  - Mobile (6…) and fixed-line (2…) numbers are labelled. Wrong lengths or prefixes get a ⚠ warning and are never silently changed.
+  - Operators are not shown, because number portability means a prefix doesn't prove the current network.
+- **General fixes.** Trunk 0s are dropped (`0803…` → `+234803…`). An extra 0 after the code is removed (`+234 0803…`). `00`/`011` become `+`. Short codes like `112` are left alone.
+- **Recents.** Every copy or share goes to the top of Recent, which keeps 15 numbers. They're shown in your current format: tap a row to reload it, use the icon to copy it, long-press to remove it.
+- **Widget.** Shows the last copied number with a copy button and a ✨ button. ✨ cleans whatever number is on your clipboard and copies it back without opening the app. Make the widget taller to see up to 3 more recent numbers, each tap-to-copy.
+- **Launcher shortcut.** Long-press the app icon and choose **Clean clipboard** to do the same as ✨.
+- **Share and text selection.** You can share a number into the app, or select a number in any app and choose **Clean number**.
+- **Design.** Light and dark mode, with Material You colours on Android 12+.
 
-## Install the prebuilt APK
+## Install
 
-Copy `NumberCleaner.apk` to your phone, open it, and allow "Install unknown apps" for your file manager when Android asks. It needs Android 7.0 (API 24) or newer.
-
-To add the widget, long-press the home screen, choose **Widgets → Number Cleaner**, and drag it out. It can be resized.
+Copy `NumberCleaner.apk` to the phone and open it. It needs Android 7.0 or newer. Version 1.1 installs over 1.0 and keeps your recents.
 
 ## Build from source
 
-Open this folder in Android Studio and press Run. From the command line:
-
-```
-./gradlew assembleDebug        # app/build/outputs/apk/debug/app-debug.apk
-./gradlew test                 # unit tests for the cleaning rules
-```
-
-The release build type signs with the debug key for convenience. Add your own `signingConfig` before publishing.
+Open the folder in Android Studio, or run `./gradlew assembleDebug`. Unit tests for all cleaning rules run with `./gradlew test`.
 
 ## Code map
 
 | File | What it does |
 |---|---|
-| `PhoneCleaner.java` | All cleaning rules, as pure Java with unit tests in `app/src/test` |
-| `Country.java` | Calling codes, national number lengths and trunk/exit prefixes |
+| `PhoneCleaner.java` | Cleaning, detection, Cameroon rules and output formats. Pure Java, unit-tested. |
+| `Country.java` | Calling codes, number lengths and trunk/exit prefixes for about 200 countries |
 | `MainActivity.java` | The single screen |
-| `Store.java` | Saved country and history (SharedPreferences) |
+| `QuickCleanActivity.java` | Invisible one-tap clipboard cleaner used by the widget and shortcut |
 | `NumberWidget.java` | Home-screen widget |
-| `Clip.java` | Clipboard helpers |
-
-To add a country, append one line to the list in `Country.java`: ISO code, name, dial code, min and max national digits, and trunk prefix.
+| `Store.java` / `Clip.java` | Settings, history and clipboard |

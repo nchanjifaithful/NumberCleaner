@@ -19,6 +19,9 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
             <!-- "Share" a number from another app -->
             <intent-filter android:label="@string/clean_number_action">
                 <action android:name="android.intent.action.SEND" />
@@ -32,6 +35,15 @@
                 <data android:mimeType="text/plain" />
             </intent-filter>
         </activity>
+
+        <!-- One tap from the widget / launcher shortcut: clean the clipboard number, copy it back. -->
+        <activity
+            android:name=".QuickCleanActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:noHistory="true"
+            android:taskAffinity=""
+            android:theme="@style/Theme.NumberCleaner.Invisible" />
 
         <receiver
             android:name=".NumberWidget"
