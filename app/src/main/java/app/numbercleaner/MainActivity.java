@@ -281,6 +281,7 @@ public class MainActivity extends Activity {
         Country c = current.country;
         if (c != null) {
             StringBuilder sb = new StringBuilder(c.flag()).append("  ").append(c.name);
+            if (current.network != null) sb.append(" · ").append(getString(R.string.likely_network, current.network));
             if (current.lineType != null) sb.append(" · ").append(current.lineType);
             if (current.detected && c != home) sb.append(" · ").append(getString(R.string.meta_detected));
             else if (forced != null) sb.append(" · ").append(getString(R.string.meta_chosen));
@@ -480,7 +481,9 @@ public class MainActivity extends Activity {
 
             number.setText(shown);
             CharSequence when = DateUtils.getRelativeTimeSpanString(e.time, now, DateUtils.MINUTE_IN_MILLIS);
-            detail.setText(r.country != null ? r.country.flag() + " " + r.country.name + " · " + when : when);
+            String where = r.country == null ? ""
+                    : r.country.flag() + " " + (r.network != null ? r.network : r.country.name) + " · ";
+            detail.setText(where + when);
             copy.setContentDescription(getString(R.string.copy_number_cd, shown));
             copy.setOnClickListener(v -> {
                 Clip.copy(this, shown);

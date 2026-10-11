@@ -70,6 +70,23 @@ public class PhoneCleanerTest {
     }
 
     @Test
+    public void cameroonNetworks() {
+        assertEquals("MTN", r("677 12 34 56", CM).network);
+        assertEquals("MTN", r("+237 680 12 34 56", CM).network);
+        assertEquals("MTN", r("650 12 34 56", CM).network);
+        assertEquals("MTN", r("654 12 34 56", CM).network);
+        assertEquals("Orange", r("699 12 34 56", CM).network);
+        assertEquals("Orange", r("655 12 34 56", CM).network);
+        assertEquals("Orange", r("659 12 34 56", CM).network);
+        assertEquals("Nexttel", r("666 12 34 56", CM).network);
+        assertEquals("Camtel", r("620 12 34 56", CM).network);
+        assertEquals("Camtel", r("222 12 34 56", CM).network);
+        assertEquals("MTN", r("237 77 12 34 56", CM).network);   // after adding the missing 6
+        assertNull(r("640 12 34 56", CM).network);              // unallocated in our table: no guess
+        assertNull(r("+44 20 7946 0958", CM).network);
+    }
+
+    @Test
     public void cameroonWrongPrefixWarns() {
         assertNotNull(r("+237 512345678", CM).warning);
     }

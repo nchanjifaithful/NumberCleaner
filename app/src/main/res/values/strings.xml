@@ -10,6 +10,7 @@
     <string name="country_button_cd">Country for local numbers: %1$s, plus %2$s. Tap to change.</string>
     <string name="picker_title">Choose country</string>
     <string name="picker_search">Search country or code</string>
+    <string name="likely_network">Likely %1$s</string>
     <string name="meta_detected">from the number</string>
     <string name="meta_chosen">chosen</string>
     <string name="meta_cd">Country: %1$s. Tap to change.</string>
@@ -48,13 +49,15 @@
     <string name="copy_number_cd">Copy %1$s</string>
 
     <string name="widget_name">Number Cleaner</string>
-    <string name="widget_description">Clean the number on your clipboard in one tap, or copy a recent one.</string>
-    <string name="widget_label">Last copied</string>
-    <string name="widget_empty">Copy a number, then tap ✨</string>
-    <string name="widget_clean_cd">Clean the number on the clipboard</string>
-    <string name="widget_open_cd">Open Number Cleaner</string>
-    <string name="widget_no_more">More recent numbers appear here</string>
-
+    <string name="widget_description">Paste a number, pick the format and copy it, right from your home screen.</string>
+    <string name="widget_empty">Tap paste</string>
+    <string name="widget_hint">Copy a number anywhere, then tap paste</string>
+    <string name="widget_paste_cd">Paste and clean the number on the clipboard</string>
+    <string name="widget_code_on">✓ Country code</string>
+    <string name="widget_code_off">Country code</string>
+    <string name="widget_plus_on">✓ +</string>
+    <string name="widget_plus_off">+</string>
+    <string name="widget_nothing">No phone number on the clipboard</string>
     <string name="quick_copied">Cleaned and copied: %1$s</string>
     <string name="quick_copied_warn">Copied %1$s, but check it: %2$s</string>
     <string name="shortcut_clean_short">Clean clipboard</string>

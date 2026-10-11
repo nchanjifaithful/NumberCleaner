@@ -25,6 +25,7 @@ public final class Store {
     private static final String KEY_HISTORY = "history";
     private static final String KEY_INCLUDE_CODE = "include_code";
     private static final String KEY_INCLUDE_PLUS = "include_plus";
+    private static final String KEY_WIDGET_NUMBER = "widget_number";
 
     public static final class Entry {
         public final String number;
@@ -100,6 +101,20 @@ public final class Store {
         return parse(stored).format(includeCode(), includePlus());
     }
 
+    // ---- Widget ----
+
+    /** Number in the widget's box: the one pasted there, else the last copied one. May be null. */
+    public String getWidgetNumber() {
+        String w = prefs.getString(KEY_WIDGET_NUMBER, null);
+        return w != null ? w : getLast();
+    }
+
+    /** Puts a freshly pasted number in the widget's box (not copied yet, so not in recents). */
+    public void setWidgetNumber(String number) {
+        prefs.edit().putString(KEY_WIDGET_NUMBER, number).commit();
+        NumberWidget.updateAll(app);
+    }
+
     // ---- History ----
 
     public List<Entry> getHistory() {
@@ -132,6 +147,8 @@ public final class Store {
         h.add(0, new Entry(number, System.currentTimeMillis()));
         while (h.size() > MAX_HISTORY) h.remove(h.size() - 1);
         save(h);
+        // The widget box follows the latest copy, wherever it happened.
+        prefs.edit().remove(KEY_WIDGET_NUMBER).commit();
         NumberWidget.updateAll(app);
     }
 

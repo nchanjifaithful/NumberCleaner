@@ -14,6 +14,9 @@ import android.os.Looper;
  */
 public class QuickCleanActivity extends Activity {
 
+    /** Widget paste: put the cleaned number in the widget's box instead of copying it straight away. */
+    static final String EXTRA_TO_WIDGET = "to_widget";
+
     private boolean done;
     private final Handler handler = new Handler(Looper.getMainLooper());
     /** If focus never arrives (another window holds it), don't sit invisibly on top of the screen. */
@@ -63,6 +66,14 @@ public class QuickCleanActivity extends Activity {
         String text = Clip.read(this);
         Store store = new Store(this);
         PhoneCleaner.Result r = Clip.looksLikeNumber(text) ? PhoneCleaner.clean(text, store.getCountry()) : null;
+        if (getIntent().getBooleanExtra(EXTRA_TO_WIDGET, false)) {
+            if (r == null || r.isEmpty()) {
+                android.widget.Toast.makeText(this, R.string.widget_nothing, android.widget.Toast.LENGTH_SHORT).show();
+            } else {
+                store.setWidgetNumber(r.e164());
+            }
+            return;
+        }
         if (r == null || r.isEmpty()) {
             // Nothing usable on the clipboard: open the app so the user can type one.
             startActivity(new Intent(this, MainActivity.class)

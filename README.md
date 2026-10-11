@@ -18,17 +18,21 @@ A tiny Android app (about 80 KB, no permissions, no third-party libraries) that 
   - The code is never added twice: `237 677 12 34 56` → `+237677123456`.
   - Old 8-digit numbers get the missing digit: mobiles get a **6** (`237 77 12 34 56` → `+237677123456`), fixed lines get a **2** (`22 12 34 56` → `+237222123456`). The app always shows a ✎ note when it does this.
   - Mobile (6…) and fixed-line (2…) numbers are labelled. Wrong lengths or prefixes get a ⚠ warning and are never silently changed.
-  - Operators are not shown, because number portability means a prefix doesn't prove the current network.
+  - **Network by prefix:** MTN (67, 68, 650–654), Orange (69, 655–659), Nexttel (66), Camtel (62 mobile, 2… fixed). It's shown as "Likely MTN" because ported numbers keep their prefix. Unknown ranges show no network. The table is `CM_NETWORKS` in `PhoneCleaner.java`; update it from the ART plan if ranges change.
 - **General fixes.** Trunk 0s are dropped (`0803…` → `+234803…`). An extra 0 after the code is removed (`+234 0803…`). `00`/`011` become `+`. Short codes like `112` are left alone.
 - **Recents.** Every copy or share goes to the top of Recent, which keeps 15 numbers. They're shown in your current format: tap a row to reload it, use the icon to copy it, long-press to remove it.
-- **Widget.** Shows the last copied number with a copy button and a ✨ button. ✨ cleans whatever number is on your clipboard and copies it back without opening the app. Make the widget taller to see up to 3 more recent numbers, each tap-to-copy.
-- **Launcher shortcut.** Long-press the app icon and choose **Clean clipboard** to do the same as ✨.
+- **Widget.** Works without opening the app, and its layout changes as you resize it:
+  - **1 row:** `[paste] [ cleaned number ] [copy]`
+  - **2 rows:** adds the country and network line ("🇨🇲 Likely MTN · Mobile") and the **✓ Country code** / **✓ +** toggles. The box updates as you toggle.
+  - **Taller:** adds up to 3 recent numbers, each copied with a tap.
+  - Paste cleans whatever is on your clipboard and shows it in the box. Copy copies exactly what's shown and adds it to recents.
+- **Launcher shortcut.** Long-press the app icon and choose **Clean clipboard** to clean and copy in one step.
 - **Share and text selection.** You can share a number into the app, or select a number in any app and choose **Clean number**.
 - **Design.** Light and dark mode, with Material You colours on Android 12+.
 
 ## Install
 
-Copy `NumberCleaner.apk` to the phone and open it. It needs Android 7.0 or newer. Version 1.1 installs over 1.0 and keeps your recents.
+Copy `NumberCleaner.apk` to the phone and open it. It needs Android 7.0 or newer. Each new version installs over the previous one and keeps your recents.
 
 ## Build from source
 

@@ -43,11 +43,19 @@ public final class PhoneCleaner {
         public final String warning;
         /** "Mobile" / "Fixed line" where the plan makes this clear (Cameroon), else null. */
         public final String lineType;
+        /** Network the prefix was originally allocated to (Cameroon), else null. Ported numbers may differ. */
+        public final String network;
         /** Trimmed input. */
         public final String original;
 
         Result(Kind kind, Country country, String nsn, boolean detected, String fix, String warning,
                String lineType, String original) {
+            this(kind, country, nsn, detected, fix, warning, lineType, null, original);
+        }
+
+        Result(Kind kind, Country country, String nsn, boolean detected, String fix, String warning,
+               String lineType, String network, String original) {
+            this.network = network;
             this.kind = kind;
             this.country = country;
             this.nsn = nsn;
@@ -244,16 +252,44 @@ public final class PhoneCleaner {
             warning = c.name + " numbers have " + expected + " digits after +" + c.dialCode
                     + " — this one has " + nsn.length();
         }
+        String network = null;
         if (isCameroon(c) && nsn.length() == 9) {
             char first = nsn.charAt(0);
             if (first == '6') lineType = "Mobile";
             else if (first == '2') lineType = "Fixed line";
             else if (warning == null) warning = "Cameroon numbers start with 6 (mobile) or 2 (fixed line)";
+            network = cameroonNetwork(nsn);
         }
         if (c.dialCode.length() + nsn.length() > E164_MAX) {
             warning = "Longer than 15 digits — double-check this number";
         }
-        return new Result(kind, c, nsn, detected, fix, warning, lineType, original);
+        return new Result(kind, c, nsn, detected, fix, warning, lineType, network, original);
+    }
+
+    /**
+     * Cameroon prefix → network it was allocated to (ART plan). Longest prefix wins.
+     * Numbers can be ported, so the UI shows this as "likely". Update here if ART re-allocates ranges.
+     */
+    private static final String[][] CM_NETWORKS = {
+            {"650", "MTN"}, {"651", "MTN"}, {"652", "MTN"}, {"653", "MTN"}, {"654", "MTN"},
+            {"655", "Orange"}, {"656", "Orange"}, {"657", "Orange"}, {"658", "Orange"}, {"659", "Orange"},
+            {"67", "MTN"}, {"68", "MTN"},
+            {"69", "Orange"},
+            {"66", "Nexttel"},
+            {"62", "Camtel"},
+            {"2", "Camtel"},
+    };
+
+    static String cameroonNetwork(String nsn) {
+        String best = null;
+        int bestLen = 0;
+        for (String[] row : CM_NETWORKS) {
+            if (nsn.startsWith(row[0]) && row[0].length() > bestLen) {
+                best = row[1];
+                bestLen = row[0].length();
+            }
+        }
+        return best;
     }
 
     private static boolean isCameroon(Country c) {
