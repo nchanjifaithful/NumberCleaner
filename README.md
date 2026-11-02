@@ -1,50 +1,124 @@
 # Number Cleaner
 
-A tiny Android app (about 80 KB, no permissions, no third-party libraries) that turns messy phone numbers into clean, copy-ready ones.
+A tiny Android app that turns messy phone numbers into clean, copy-ready ones.
 
-`(+237) 677-12-34-56` → `+237677123456`, `237677123456` or `677123456`, depending on the format you choose.
+| Input | Output format | Result |
+|---|---|---|
+| `(+237) 677-12-34-56` | Country code and `+` | `+237677123456` |
+| `(+237) 677-12-34-56` | Country code only | `237677123456` |
+| `(+237) 677-12-34-56` | Local | `677123456` |
+
+Number Cleaner is about 80 KB, requests no Android permissions and uses no third-party runtime libraries.
 
 ## Features
 
-- **Live cleaning.** Spaces, dashes, dots, brackets, labels ("Phone:", "tel:") and extensions are removed as you type.
-- **Output format.** Two checkboxes control what gets copied:
-  - **Country code** off gives local format: `677123456`, or `08031234567` for Nigeria, which keeps its leading 0.
-  - **Leading +** off gives `237677123456`.
-- **Automatic country detection.**
-  - A number with `+` or `00` is always read from its own code: 🇬🇧 for +44, 🇯🇲 for +1 876, 🇰🇿 for +7 7…, and so on.
-  - Without `+`, the number is first tried as a local number of your country. If it can't be one, a long number such as `447946095800` is recognised as another country's.
-  - Tap the country line under the result to pick a different country. The picker covers about 200 countries and you can search by name or code.
-- **Cameroon rules** (ART numbering plan, 9 digits after +237):
-  - The code is never added twice: `237 677 12 34 56` → `+237677123456`.
-  - Old 8-digit numbers get the missing digit: mobiles get a **6** (`237 77 12 34 56` → `+237677123456`), fixed lines get a **2** (`22 12 34 56` → `+237222123456`). The app always shows a ✎ note when it does this.
-  - Mobile (6…) and fixed-line (2…) numbers are labelled. Wrong lengths or prefixes get a ⚠ warning and are never silently changed.
-  - **Network by prefix:** MTN (67, 68, 650–654), Orange (69, 655–659), Nexttel (66), Camtel (62 mobile, 2… fixed). It's shown as "Likely MTN" because ported numbers keep their prefix. Unknown ranges show no network. The table is `CM_NETWORKS` in `PhoneCleaner.java`; update it from the ART plan if ranges change.
-- **General fixes.** Trunk 0s are dropped (`0803…` → `+234803…`). An extra 0 after the code is removed (`+234 0803…`). `00`/`011` become `+`. Short codes like `112` are left alone.
-- **Recents.** Every copy or share goes to the top of Recent, which keeps 15 numbers. They're shown in your current format: tap a row to reload it, use the icon to copy it, long-press to remove it.
-- **Widget.** Works without opening the app, and its layout changes as you resize it:
-  - **1 row:** `[paste] [ cleaned number ] [copy]`
-  - **2 rows:** adds the country and network line ("🇨🇲 Likely MTN · Mobile") and the **✓ Country code** / **✓ +** toggles. The box updates as you toggle.
-  - **Taller:** adds up to 3 recent numbers, each copied with a tap.
-  - Paste cleans whatever is on your clipboard and shows it in the box. Copy copies exactly what's shown and adds it to recents.
-- **Launcher shortcut.** Long-press the app icon and choose **Clean clipboard** to clean and copy in one step.
-- **Share and text selection.** You can share a number into the app, or select a number in any app and choose **Clean number**.
-- **Design.** Light and dark mode, with Material You colours on Android 12+.
+### Cleaning
 
-## Install
+- Removes spaces, dashes, dots, brackets, labels such as `Phone:` or `tel:`, and extensions as you type.
+- Lets you choose the output format with two options: **Country code** and **Leading +**.
+- Drops trunk zeros (`0803…` → `+234803…`) and an extra zero after the code (`+234 0803…`).
+- Converts the `00` and `011` international prefixes to `+`.
+- Leaves short codes such as `112` unchanged.
 
-Copy `NumberCleaner.apk` to the phone and open it. It needs Android 7.0 or newer. Each new version installs over the previous one and keeps your recents.
+### Country detection
 
-## Build from source
+- Reads numbers that start with `+` or `00` from their own country code.
+- Tries other numbers as local numbers for your selected country first, then checks whether a long number such as `447946095800` belongs to another country.
+- Includes a picker with about 200 countries, searchable by name or code.
 
-Open the folder in Android Studio, or run `./gradlew assembleDebug`. Unit tests for all cleaning rules run with `./gradlew test`.
+### Cameroon numbering rules
 
-## Code map
+Numbers follow the ART numbering plan, with 9 digits after `+237`.
 
-| File | What it does |
+- The country code is never added twice: `237 677 12 34 56` → `+237677123456`.
+- Old 8-digit numbers get their missing digit, and the app always shows a note when this happens:
+  - Mobile numbers get a `6`: `237 77 12 34 56` → `+237677123456`.
+  - Fixed lines get a `2`: `22 12 34 56` → `+237222123456`.
+- Numbers are labelled as mobile or fixed line.
+- Wrong lengths or prefixes show a warning and are never silently changed.
+- The likely network is shown from the prefix:
+
+| Network | Prefixes |
 |---|---|
-| `PhoneCleaner.java` | Cleaning, detection, Cameroon rules and output formats. Pure Java, unit-tested. |
-| `Country.java` | Calling codes, number lengths and trunk/exit prefixes for about 200 countries |
-| `MainActivity.java` | The single screen |
-| `QuickCleanActivity.java` | Invisible one-tap clipboard cleaner used by the widget and shortcut |
+| MTN | `67`, `68`, `650`–`654` |
+| Orange | `69`, `655`–`659` |
+| Nexttel | `66` |
+| Camtel | `62` (mobile), `2` (fixed line) |
+
+Networks are labelled "Likely" because ported numbers keep their original prefix.
+
+### Home-screen widget
+
+The widget works without opening the app, and its layout changes as you resize it:
+
+| Widget size | What it shows |
+|---|---|
+| 1 row | Paste button, cleaned number and copy button |
+| 2 rows | Adds the country and network line, plus country code and `+` toggles |
+| Taller | Adds up to 3 recent numbers, each copied with a tap |
+
+### More ways to use it
+
+- **Recent numbers:** keeps the last 15 numbers you copied or shared.
+- **Launcher shortcut:** long-press the app icon and choose **Clean clipboard** to clean and copy in one step.
+- **Sharing:** share a number into the app, or select a number in any app and choose **Clean number**.
+- **Design:** supports light and dark mode, with Material You colours on Android 12 and newer.
+
+## Getting started
+
+### Requirements
+
+- Android 7.0 (API 24) or newer to run the app
+- JDK 17 or newer, and the Android SDK for API 34, to build it
+
+Android Studio can provide the JDK and SDK. The included Gradle wrapper downloads the correct Gradle version.
+
+### Build
+
+Open the project in Android Studio and press **Run**, or build from the command line:
+
+```bash
+./gradlew assembleDebug
+```
+
+The APK is written to `app/build/outputs/apk/debug/app-debug.apk`. On Windows, use `gradlew.bat` instead of `./gradlew`.
+
+### Test
+
+The cleaning, detection and output rules have unit tests in `app/src/test`:
+
+```bash
+./gradlew test
+```
+
+### Add the widget
+
+Long-press the home screen, choose **Widgets → Number Cleaner**, and drag it into place.
+
+## Project structure
+
+All source files are in `app/src/main/java/app/numbercleaner/`.
+
+| File | Purpose |
+|---|---|
+| `PhoneCleaner.java` | Cleaning, detection, Cameroon rules and output formats, as plain Java |
+| `Country.java` | Calling codes, number lengths, and trunk and exit prefixes |
+| `MainActivity.java` | The app's single screen |
+| `QuickCleanActivity.java` | Invisible clipboard cleaner used by the widget and launcher shortcut |
 | `NumberWidget.java` | Home-screen widget |
-| `Store.java` / `Clip.java` | Settings, history and clipboard |
+| `Store.java` | Settings and history |
+| `Clip.java` | Clipboard helpers |
+
+The Cameroon network prefixes are in the `CM_NETWORKS` table in `PhoneCleaner.java`. Update that table if the ART plan changes.
+
+## Release signing
+
+The release build is signed with the debug key so that `assembleRelease` produces an installable APK. Add your own `signingConfig` in `app/build.gradle.kts` before publishing to a store.
+
+## Version history
+
+| Version | Highlights |
+|---|---|
+| [`v1.2`](../../tree/v1.2) | Likely-network labels for Cameroon and a widget layout that adapts to its size |
+| [`v1.1`](../../tree/v1.1) | Output format options, detection across about 200 countries, Cameroon rules and one-tap clipboard cleaning |
+| [`v1.0`](../../tree/v1.0) | First release with live cleaning, default country code, copy and share, recent numbers, and a widget |
