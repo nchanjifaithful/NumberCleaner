@@ -64,12 +64,19 @@ The widget works without opening the app, and its layout changes as you resize i
 - **Sharing:** share a number into the app, or select a number in any app and choose **Clean number**.
 - **Design:** supports light and dark mode, with Material You colours on Android 12 and newer.
 
-## Getting started
+## Install
+
+1. Download `NumberCleaner-v1.2.apk` from the [latest release](../../releases/latest).
+2. Open the file on your phone and allow installs from that app if Android asks.
+
+The app needs Android 7.0 (API 24) or newer. APKs for earlier versions are on the [releases page](../../releases).
+
+## Build from source
 
 ### Requirements
 
-- Android 7.0 (API 24) or newer to run the app
-- JDK 17 or newer, and the Android SDK for API 34, to build it
+- JDK 17 or newer
+- Android SDK for API 34
 
 Android Studio can provide the JDK and SDK. The included Gradle wrapper downloads the correct Gradle version.
 
@@ -119,6 +126,6 @@ The release build is signed with the debug key so that `assembleRelease` produce
 
 | Version | Highlights |
 |---|---|
-| [`v1.2`](../../tree/v1.2) | Likely-network labels for Cameroon and a widget layout that adapts to its size |
-| [`v1.1`](../../tree/v1.1) | Output format options, detection across about 200 countries, Cameroon rules and one-tap clipboard cleaning |
-| [`v1.0`](../../tree/v1.0) | First release with live cleaning, default country code, copy and share, recent numbers, and a widget |
+| [`v1.2`](../../releases/tag/v1.2) | Likely-network labels for Cameroon and a widget layout that adapts to its size |
+| [`v1.1`](../../releases/tag/v1.1) | Output format options, detection across about 200 countries, Cameroon rules and one-tap clipboard cleaning |
+| [`v1.0`](../../releases/tag/v1.0) | First release with live cleaning, default country code, copy and share, recent numbers, and a widget |
