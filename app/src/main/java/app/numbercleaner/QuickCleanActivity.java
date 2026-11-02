@@ -16,6 +16,10 @@ public class QuickCleanActivity extends Activity {
 
     /** Widget paste: put the cleaned number in the widget's box instead of copying it straight away. */
     static final String EXTRA_TO_WIDGET = "to_widget";
+    /** Widget Send: dial with the saved amount, or open the amount dialog when that's needed. */
+    static final String EXTRA_SEND = "send";
+    /** With EXTRA_SEND: always show the amount dialog (the 1-row widget has no room to show the amount). */
+    static final String EXTRA_ASK = "ask";
 
     private boolean done;
     private final Handler handler = new Handler(Looper.getMainLooper());
@@ -30,7 +34,18 @@ public class QuickCleanActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        if (savedInstanceState != null) done = true;   // never re-run after a configuration change
+        if (savedInstanceState != null) {
+            // Recreated (e.g. rotated) before finishing: never re-run, and don't linger invisibly.
+            done = true;
+            finish();
+            return;
+        }
+        if (!done && getIntent().getBooleanExtra(EXTRA_SEND, false)) {
+            done = true;   // Send doesn't need the clipboard, so no need to wait for focus
+            send();
+            finish();
+            overridePendingTransition(0, 0);
+        }
     }
 
     @Override
@@ -60,6 +75,30 @@ public class QuickCleanActivity extends Activity {
         super.onPause();
         // If focus never arrived (e.g. the screen locked), don't linger.
         if (!done) finish();
+    }
+
+    /**
+     * Widget Send. Dials immediately with the saved amount unless the user wants to be asked, no default
+     * amount is set, or the number can't be used — then the amount dialog opens (it explains any problem).
+     */
+    private void send() {
+        Store store = new Store(this);
+        String number = store.getWidgetNumber();
+        PhoneCleaner.Result r = number != null ? store.parse(number) : null;
+        String template = store.ussdTemplate();
+        boolean ask = getIntent().getBooleanExtra(EXTRA_ASK, false);
+        String code = !ask && r != null && store.sendBlockReason(r) == 0 && store.widgetSendsInstantly()
+                ? Ussd.build(template, r.format(false, false), store.defaultAmount()) : null;
+        if (code == null) {
+            if (number != null) {
+                startActivity(UssdActivity.intent(this, number).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+            }
+            return;
+        }
+        if (!store.claimInstantSend()) return;   // second tap within a few seconds: ignore, no double payment
+        if (UssdActivity.launch(this, store, code)) {
+            store.remember(number);
+        }
     }
 
     private void run() {

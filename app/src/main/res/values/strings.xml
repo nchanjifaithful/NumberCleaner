@@ -65,6 +65,7 @@
 
     <!-- Send money (USSD) -->
     <string name="send">Send</string>
+    <string name="send_amount">Send %1$s</string>
     <string name="send_cd">Send money to this number with a USSD code</string>
     <string name="ussd_title">Send money</string>
     <string name="ussd_to">To</string>
@@ -90,4 +91,20 @@
     <string name="setting_direct_dial">Dial directly</string>
     <string name="setting_direct_dial_help">Calls the code without stopping at the dialer. Needs the phone permission.</string>
     <string name="setting_direct_dial_denied">Phone permission not granted. The dialer will open instead.</string>
+
+    <!-- Tabs -->
+    <string name="tab_clean">Clean</string>
+    <string name="tab_recent">Recent</string>
+    <string name="tab_settings">Settings</string>
+    <string name="history_tip">Tap a number to open it in Clean. Long-press to remove it.</string>
+    <string name="section_send">Send money</string>
+    <string name="section_widget">Widget</string>
+    <string name="about">Number Cleaner %1$s · works offline · no ads, no tracking</string>
+
+    <string name="setting_amount">Default amount</string>
+    <string name="setting_amount_hint">e.g. 5000</string>
+    <string name="setting_amount_help">The widget\'s Send uses this amount and dials straight away. Leave empty to be asked each time.</string>
+    <string name="setting_amount_invalid">Whole numbers only, e.g. 5000</string>
+    <string name="setting_ask_amount">Ask for the amount on the widget</string>
+    <string name="setting_ask_amount_help">Shows the amount dialog before dialling, even when a default amount is set.</string>
 </resources>

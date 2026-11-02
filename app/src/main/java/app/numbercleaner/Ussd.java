@@ -50,4 +50,19 @@ public final class Ussd {
         String a = isValidAmount(amount) ? amount : "…";
         return template.replace(NUMBER, number).replace(AMOUNT, a);
     }
+
+    /** 500 → "500", 5000 → "5k", 2500 → "2.5k", 150000 → "150k", 1500000 → "1.5M". */
+    public static String shortAmount(String amount) {
+        long n;
+        try {
+            n = Long.parseLong(amount);
+        } catch (NumberFormatException e) {
+            return amount;
+        }
+        if (n < 1000) return String.valueOf(n);
+        String unit = n >= 1_000_000 ? "M" : "k";
+        long div = n >= 1_000_000 ? 1_000_000 : 1000;
+        long whole = n / div, tenth = (n % div) * 10 / div;
+        return whole >= 100 || tenth == 0 ? whole + unit : whole + "." + tenth + unit;
+    }
 }

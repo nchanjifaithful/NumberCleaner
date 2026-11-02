@@ -8,7 +8,7 @@ A tiny Android app that turns messy phone numbers into clean, copy-ready ones.
 | `(+237) 677-12-34-56` | Country code only | `237677123456` |
 | `(+237) 677-12-34-56` | Local | `677123456` |
 
-Number Cleaner is under 100 KB and uses no third-party runtime libraries. It can also start a mobile money transfer to a cleaned number with a USSD code.
+Number Cleaner is about 105 KB, works offline and uses no third-party runtime libraries. It can also start a mobile money transfer to a cleaned number with a USSD code.
 
 ## Permissions
 
@@ -53,12 +53,12 @@ Networks are labelled "Likely" because ported numbers keep their original prefix
 
 ### Send money
 
-**Send**, in the app or on the widget, opens a small dialog with the recipient's local number and likely network. Enter the amount, check the exact code shown, then choose **Dial**.
-
-- The default code is `*126*9*{number}*{amount}#` (MTN MoMo). If your operator uses a different code, change it in Settings.
-- **Dial** opens your phone's dialer with the code filled in.
-- **Dial directly**, an optional setting, calls the code straight away.
-- Your phone then shows the operator's menu, where you confirm and enter your PIN. The app never sees your PIN.
+- **In the app:** **Send** opens a small dialog with the recipient's local number, their likely network, the amount and the exact code to dial.
+- **On the widget:** on the larger widget sizes, **Send** dials straight away with your default amount, and the button shows it, such as "Send 5k". With no default amount set, it asks. The small widget always asks, and you can make every size ask in Settings.
+- **USSD code:** the default is `*126*9*{number}*{amount}#` (MTN MoMo). If your operator uses a different code, change it in Settings.
+- **Dialing:** the app opens your phone's dialer with the code filled in. **Dial directly**, an optional setting, calls the code straight away.
+- **Confirming:** your phone then shows the operator's menu, where you confirm and enter your PIN. The app never sees your PIN.
+- **Safeguards:** numbers from another country, unknown numbers and numbers with a warning can't be sent to. Repeat taps on the widget's instant Send are ignored for a few seconds.
 
 ### Home-screen widget
 
@@ -70,10 +70,11 @@ The widget works without opening the app, and its layout changes as you resize i
 | Medium (4×2) | Adds the country and network line, country code and `+` toggles, and labelled buttons |
 | Tall | Adds up to 3 recent numbers, each copied with a tap |
 
-When the widget is empty, it shows a single wide Paste button. Turn on **Widget: copy automatically after Paste** in Settings to clean and copy with one tap.
+When the widget is empty, it shows a single wide Paste button. Turn on automatic copy after Paste in Settings to clean and copy with one tap.
 
 ### More ways to use it
 
+- **Navigation:** a bottom bar switches between the **Clean**, **Recent** and **Settings** tabs.
 - **Recent numbers:** keeps the last 15 numbers you copied or shared.
 - **Launcher shortcut:** long-press the app icon and choose **Clean clipboard** to clean and copy in one step.
 - **Sharing:** share a number into the app, or select a number in any app and choose **Clean number**.
@@ -81,7 +82,7 @@ When the widget is empty, it shows a single wide Paste button. Turn on **Widget:
 
 ## Install
 
-1. Download `NumberCleaner-v1.3.apk` from the [latest release](../../releases/latest).
+1. Download `NumberCleaner-v1.4.apk` from the [latest release](../../releases/latest).
 2. Open the file on your phone and allow installs from that app if Android asks.
 
 The app needs Android 7.0 (API 24) or newer. APKs for earlier versions are on the [releases page](../../releases).
@@ -125,8 +126,8 @@ All source files are in `app/src/main/java/app/numbercleaner/`.
 |---|---|
 | `PhoneCleaner.java` | Cleaning, detection, Cameroon rules and output formats, as plain Java |
 | `Country.java` | Calling codes, number lengths, and trunk and exit prefixes |
-| `MainActivity.java` | The app's single screen |
-| `QuickCleanActivity.java` | Invisible clipboard cleaner used by the widget and launcher shortcut |
+| `MainActivity.java` | The app screen, with Clean, Recent and Settings tabs |
+| `QuickCleanActivity.java` | Invisible screen behind the widget's Paste and Send buttons and the launcher shortcut |
 | `UssdActivity.java` | Send-money dialog |
 | `Ussd.java` | USSD code templates, as plain Java |
 | `NumberWidget.java` | Home-screen widget |
@@ -143,6 +144,7 @@ The release build is signed with the debug key so that `assembleRelease` produce
 
 | Version | Highlights |
 |---|---|
+| [`v1.4`](../../releases/tag/v1.4) | Three-tab navigation, a default amount, and instant Send from the widget |
 | [`v1.3`](../../releases/tag/v1.3) | Send money by USSD, new Settings, and a redesigned widget with a Send button |
 | [`v1.2`](../../releases/tag/v1.2) | Likely-network labels for Cameroon and a widget layout that adapts to its size |
 | [`v1.1`](../../releases/tag/v1.1) | Output format options, detection across about 200 countries, Cameroon rules and one-tap clipboard cleaning |

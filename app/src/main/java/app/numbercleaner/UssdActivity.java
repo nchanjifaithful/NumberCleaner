@@ -99,6 +99,12 @@ public class UssdActivity extends Activity {
             return false;
         });
         if (needsAmount) {
+            // Start from the saved default amount; selected so typing replaces it.
+            String preset = store.defaultAmount();
+            if (!preset.isEmpty()) {
+                amount.setText(preset);
+                amount.selectAll();
+            }
             amount.requestFocus();
             getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE);
         }
@@ -123,33 +129,39 @@ public class UssdActivity extends Activity {
         if (!dial.isEnabled() || blockReason != 0) return;
         dial.setEnabled(false);   // no double dial from a double tap / Done + tap
         String ussd = Ussd.build(template, localNumber, amount.getText().toString().trim());
-        if (ussd == null) return;
+        if (ussd != null && launch(this, store, ussd)) {
+            store.remember(getIntent().getStringExtra(EXTRA_NUMBER));
+            finish();
+        } else {
+            refresh();
+        }
+    }
+
+    /**
+     * Dials a finished USSD code: calls it directly when "Dial directly" is on and the phone permission
+     * is granted, otherwise opens the dialer with the code filled in. Shared with the widget's instant Send.
+     * @return false if nothing could handle it (a toast has been shown)
+     */
+    static boolean launch(Context context, Store store, String ussd) {
         // Uri.fromParts encodes '#' as %23, which dialers require for USSD.
         Uri uri = Uri.fromParts("tel", ussd, null);
         boolean direct = store.directDial()
-                && checkSelfPermission(Manifest.permission.CALL_PHONE) == PackageManager.PERMISSION_GRANTED;
+                && context.checkSelfPermission(Manifest.permission.CALL_PHONE) == PackageManager.PERMISSION_GRANTED;
         try {
-            startActivity(new Intent(direct ? Intent.ACTION_CALL : Intent.ACTION_DIAL, uri)
+            context.startActivity(new Intent(direct ? Intent.ACTION_CALL : Intent.ACTION_DIAL, uri)
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+            return true;
         } catch (SecurityException e) {
             // Direct call refused: fall back to the dialer with the code filled in.
-            if (!tryDialer(uri)) return;
+            try {
+                context.startActivity(new Intent(Intent.ACTION_DIAL, uri).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+                return true;
+            } catch (ActivityNotFoundException e2) {
+                Toast.makeText(context, R.string.ussd_no_dialer, Toast.LENGTH_LONG).show();
+                return false;
+            }
         } catch (ActivityNotFoundException e) {
-            Toast.makeText(this, R.string.ussd_no_dialer, Toast.LENGTH_LONG).show();
-            refresh();
-            return;
-        }
-        store.remember(getIntent().getStringExtra(EXTRA_NUMBER));
-        finish();
-    }
-
-    private boolean tryDialer(Uri uri) {
-        try {
-            startActivity(new Intent(Intent.ACTION_DIAL, uri).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
-            return true;
-        } catch (ActivityNotFoundException e) {
-            Toast.makeText(this, R.string.ussd_no_dialer, Toast.LENGTH_LONG).show();
-            refresh();
+            Toast.makeText(context, R.string.ussd_no_dialer, Toast.LENGTH_LONG).show();
             return false;
         }
     }

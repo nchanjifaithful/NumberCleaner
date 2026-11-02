@@ -29,6 +29,10 @@ public final class Store {
     private static final String KEY_AUTO_COPY = "widget_auto_copy";
     private static final String KEY_USSD_TEMPLATE = "ussd_template";
     private static final String KEY_DIRECT_DIAL = "ussd_direct_dial";
+    private static final String KEY_DEFAULT_AMOUNT = "ussd_default_amount";
+    private static final String KEY_ASK_AMOUNT = "ussd_widget_ask_amount";
+    private static final String KEY_LAST_INSTANT_SEND = "ussd_last_instant_send";
+    private static final long INSTANT_SEND_GAP_MS = 4000;
 
     public static final class Entry {
         public final String number;
@@ -121,7 +125,8 @@ public final class Store {
     }
 
     public void setUssdTemplate(String template) {
-        prefs.edit().putString(KEY_USSD_TEMPLATE, template).apply();
+        prefs.edit().putString(KEY_USSD_TEMPLATE, template).commit();
+        NumberWidget.updateAll(app);   // the widget's "Send 5k" label depends on it
     }
 
     /** Call the code immediately (needs the phone permission) instead of opening the dialer. */
@@ -142,6 +147,45 @@ public final class Store {
         if (r.country == null || r.country != getCountry()) return R.string.ussd_foreign;
         if (r.warning != null) return R.string.ussd_check_number;
         return 0;
+    }
+
+    /** Amount the widget's Send uses without asking ("" = none set, so it asks). */
+    public String defaultAmount() {
+        String a = prefs.getString(KEY_DEFAULT_AMOUNT, "");
+        return Ussd.isValidAmount(a) ? a : "";
+    }
+
+    public void setDefaultAmount(String amount) {
+        prefs.edit().putString(KEY_DEFAULT_AMOUNT, Ussd.isValidAmount(amount) ? amount : "").commit();
+        NumberWidget.updateAll(app);
+    }
+
+    /** Widget Send shows the amount dialog every time instead of dialling with the default amount. */
+    public boolean askAmountInWidget() {
+        return prefs.getBoolean(KEY_ASK_AMOUNT, false);
+    }
+
+    public void setAskAmountInWidget(boolean ask) {
+        prefs.edit().putBoolean(KEY_ASK_AMOUNT, ask).commit();
+        NumberWidget.updateAll(app);
+    }
+
+    /** True when the widget's Send can dial straight away: amount known (or not needed) and not set to ask. */
+    public boolean widgetSendsInstantly() {
+        if (askAmountInWidget()) return false;
+        return !Ussd.needsAmount(ussdTemplate()) || !defaultAmount().isEmpty();
+    }
+
+    /**
+     * Guards the widget's instant Send against double taps: returns false if another instant send
+     * happened in the last few seconds, otherwise records this one and returns true.
+     */
+    public boolean claimInstantSend() {
+        long now = System.currentTimeMillis();
+        long last = prefs.getLong(KEY_LAST_INSTANT_SEND, 0);
+        if (now - last >= 0 && now - last < INSTANT_SEND_GAP_MS) return false;
+        prefs.edit().putLong(KEY_LAST_INSTANT_SEND, now).commit();
+        return true;
     }
 
     // ---- Widget ----

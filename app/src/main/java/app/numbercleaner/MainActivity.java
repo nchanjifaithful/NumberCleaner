@@ -40,6 +40,8 @@ public class MainActivity extends Activity {
 
     private static final String STATE_AUTO_PASTE = "auto_paste";
     private static final String STATE_FORCED = "forced";
+    private static final String STATE_TAB = "tab";
+    private static final int TAB_CLEAN = 0, TAB_RECENT = 1, TAB_SETTINGS = 2;
     private static final int REQUEST_CALL_PHONE = 1;
 
     private Store store;
@@ -67,6 +69,12 @@ public class MainActivity extends Activity {
     private EditText ussdSetting;
     private TextView ussdHelp;
     private CheckBox directDialSetting;
+    private EditText amountSetting;
+    private TextView amountHelp;
+    private CheckBox askAmountSetting;
+    private View[] tabs;
+    private View[] navItems;
+    private int tab = TAB_CLEAN;
     private LinearLayout historyList;
     private TextView historyEmpty;
     private Button clearHistoryButton;
@@ -102,6 +110,15 @@ public class MainActivity extends Activity {
         ussdSetting = findViewById(R.id.setting_ussd);
         ussdHelp = findViewById(R.id.setting_ussd_help);
         directDialSetting = findViewById(R.id.setting_direct_dial);
+        amountSetting = findViewById(R.id.setting_amount);
+        amountHelp = findViewById(R.id.setting_amount_help);
+        askAmountSetting = findViewById(R.id.setting_ask_amount);
+        tabs = new View[]{findViewById(R.id.tab_clean), findViewById(R.id.tab_recent), findViewById(R.id.tab_settings)};
+        navItems = new View[]{findViewById(R.id.nav_clean), findViewById(R.id.nav_recent), findViewById(R.id.nav_settings)};
+        for (int i = 0; i < navItems.length; i++) {
+            final int index = i;
+            navItems[i].setOnClickListener(v -> selectTab(index));
+        }
         historyList = findViewById(R.id.history_list);
         historyEmpty = findViewById(R.id.history_empty);
         clearHistoryButton = findViewById(R.id.clear_history);
@@ -150,6 +167,7 @@ public class MainActivity extends Activity {
         if (savedInstanceState != null) {
             autoPastePending = savedInstanceState.getBoolean(STATE_AUTO_PASTE);
             forced = Country.fromId(savedInstanceState.getString(STATE_FORCED));
+            tab = savedInstanceState.getInt(STATE_TAB, TAB_CLEAN);
         } else if ((getIntent().getFlags() & Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY) == 0) {
             // Reopened from Recents: don't replay an old share / "clean new" request.
             handleIntent(getIntent());
@@ -158,6 +176,29 @@ public class MainActivity extends Activity {
         updatePlusEnabled();
         refresh();
         renderHistory();
+        selectTab(tab);
+    }
+
+    // ---- Tabs ----
+
+    private void selectTab(int index) {
+        if (index != tab) hideKeyboard(tabs[tab]);
+        tab = index;
+        for (int i = 0; i < tabs.length; i++) {
+            tabs[i].setVisibility(i == index ? View.VISIBLE : View.GONE);
+            navItems[i].setSelected(i == index);
+        }
+        if (index == TAB_RECENT) renderHistory();
+    }
+
+    @Override
+    public void onBackPressed() {
+        // Back from Recent / Settings returns to Clean before leaving the app.
+        if (tab != TAB_CLEAN) {
+            selectTab(TAB_CLEAN);
+        } else {
+            super.onBackPressed();
+        }
     }
 
     @Override
@@ -172,6 +213,7 @@ public class MainActivity extends Activity {
     protected void onSaveInstanceState(Bundle out) {
         super.onSaveInstanceState(out);
         out.putBoolean(STATE_AUTO_PASTE, autoPastePending);
+        out.putInt(STATE_TAB, tab);
         if (forced != null) out.putString(STATE_FORCED, forced.id);
     }
 
@@ -209,6 +251,7 @@ public class MainActivity extends Activity {
     protected void onPause() {
         super.onPause();
         if (ussdSetting.hasFocus()) commitUssdTemplate();
+        if (amountSetting.hasFocus()) commitAmount();
     }
 
     private boolean dialogOpen() {
@@ -236,6 +279,7 @@ public class MainActivity extends Activity {
             autoPastePending = true;
         }
         if (text != null) setInput(text.toString());
+        if (text != null || ACTION_CLEAN_NEW.equals(action)) selectTab(TAB_CLEAN);
     }
 
     private void setInput(String text) {
@@ -422,7 +466,48 @@ public class MainActivity extends Activity {
             commitUssdTemplate();
         });
 
+        amountSetting.setSaveEnabled(false);
+        amountSetting.setText(store.defaultAmount());
+        amountSetting.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int a, int b, int c) { }
+            @Override public void onTextChanged(CharSequence s, int a, int b, int c) { }
+            @Override public void afterTextChanged(Editable s) {
+                String a = s.toString().trim();
+                boolean ok = a.isEmpty() || Ussd.isValidAmount(a);
+                amountHelp.setText(ok ? R.string.setting_amount_help : R.string.setting_amount_invalid);
+                amountHelp.setTextColor(getColor(ok ? R.color.text_secondary : R.color.warning));
+            }
+        });
+        amountSetting.setOnFocusChangeListener((v, focused) -> { if (!focused) commitAmount(); });
+        amountSetting.setOnEditorActionListener((v, actionId, event) -> {
+            commitAmount();
+            hideKeyboard(amountSetting);
+            return true;
+        });
+
+        askAmountSetting.setSaveEnabled(false);
+        askAmountSetting.setChecked(store.askAmountInWidget());
+        askAmountSetting.setOnCheckedChangeListener((b, on) -> store.setAskAmountInWidget(on));
+
+        String version = "";
+        try {
+            version = getPackageManager().getPackageInfo(getPackageName(), 0).versionName;
+        } catch (PackageManager.NameNotFoundException ignored) {
+            // Our own package always exists.
+        }
+        ((TextView) findViewById(R.id.about)).setText(getString(R.string.about, version));
+
         syncDirectDial();
+    }
+
+    /** Saves the default amount if it's empty or a whole number; otherwise restores the saved one. */
+    private void commitAmount() {
+        String a = amountSetting.getText().toString().trim();
+        if (a.isEmpty() || Ussd.isValidAmount(a)) {
+            if (!a.equals(store.defaultAmount())) store.setDefaultAmount(a);
+        } else {
+            amountSetting.setText(store.defaultAmount());
+        }
     }
 
     private final android.widget.CompoundButton.OnCheckedChangeListener directDialListener = (b, on) -> {
@@ -598,7 +683,10 @@ public class MainActivity extends Activity {
                 flashTopRow = true;
                 renderHistory();
             });
-            row.setOnClickListener(v -> setInput(e.number));
+            row.setOnClickListener(v -> {
+                setInput(e.number);
+                selectTab(TAB_CLEAN);
+            });
             row.setOnLongClickListener(v -> {
                 if (dialogOpen()) return true;
                 dialog = new AlertDialog.Builder(this)

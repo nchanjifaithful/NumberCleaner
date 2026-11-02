@@ -61,4 +61,14 @@ public class UssdTest {
         assertNull(Ussd.build(T, "", "100"));
         assertNull(Ussd.build(T, "67#12", "100"));
     }
+
+    @Test
+    public void shortAmounts() {
+        assertEquals("500", Ussd.shortAmount("500"));
+        assertEquals("5k", Ussd.shortAmount("5000"));
+        assertEquals("2.5k", Ussd.shortAmount("2500"));
+        assertEquals("150k", Ussd.shortAmount("150000"));
+        assertEquals("1.5M", Ussd.shortAmount("1500000"));
+        assertEquals("10k", Ussd.shortAmount("10050"));
+    }
 }

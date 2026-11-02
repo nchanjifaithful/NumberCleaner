@@ -50,7 +50,8 @@ public class NumberWidget extends AppWidgetProvider {
     private static final float ROW_H = 36f;
 
     // PendingIntent request codes (one per distinct target)
-    private static final int RC_PASTE = 1, RC_COPY = 2, RC_OPEN = 3, RC_CODE = 4, RC_PLUS = 5, RC_SEND = 6, RC_ROW = 10;
+    private static final int RC_PASTE = 1, RC_COPY = 2, RC_OPEN = 3, RC_CODE = 4, RC_PLUS = 5, RC_SEND = 6,
+            RC_SEND_ASK = 7, RC_ROW = 10;
 
     @Override
     public void onUpdate(Context context, AppWidgetManager manager, int[] ids) {
@@ -147,11 +148,24 @@ public class NumberWidget extends AppWidgetProvider {
             v.setOnClickPendingIntent(R.id.w_box, paste);
         }
         if (canSend) {
-            Intent send = UssdActivity.intent(context, number)
-                    .setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
-            v.setOnClickPendingIntent(R.id.w_send, PendingIntent.getActivity(context, RC_SEND, send, flags));
+            // Through the invisible activity: dials at once with the saved amount, or opens the amount dialog.
+            // The 1-row widget can't show the amount, so there Send always asks (own request code, since
+            // PendingIntents that differ only in extras would otherwise overwrite each other).
+            boolean small = size == Size.SMALL;
+            Intent send = new Intent(context, QuickCleanActivity.class)
+                    .putExtra(QuickCleanActivity.EXTRA_SEND, true)
+                    .putExtra(QuickCleanActivity.EXTRA_ASK, small)
+                    .setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_NO_ANIMATION);
+            v.setOnClickPendingIntent(R.id.w_send,
+                    PendingIntent.getActivity(context, small ? RC_SEND_ASK : RC_SEND, send, flags));
         }
         if (size == Size.SMALL) return v;
+
+        // "Send 5k" when it dials straight away, plain "Send" when it will ask for the amount.
+        boolean instant = store.widgetSendsInstantly() && Ussd.needsAmount(store.ussdTemplate());
+        v.setTextViewText(R.id.w_send_label, instant
+                ? context.getString(R.string.send_amount, Ussd.shortAmount(store.defaultAmount()))
+                : context.getString(R.string.send));
 
         // ---- Header: country / network (or warning), and format toggles
         String warning = has ? r.warning : null;
