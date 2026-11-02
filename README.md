@@ -8,7 +8,11 @@ A tiny Android app that turns messy phone numbers into clean, copy-ready ones.
 | `(+237) 677-12-34-56` | Country code only | `237677123456` |
 | `(+237) 677-12-34-56` | Local | `677123456` |
 
-Number Cleaner is about 80 KB, requests no Android permissions and uses no third-party runtime libraries.
+Number Cleaner is under 100 KB and uses no third-party runtime libraries. It can also start a mobile money transfer to a cleaned number with a USSD code.
+
+## Permissions
+
+The app only uses the phone permission (`CALL_PHONE`), and only if you turn on **Dial directly** in Settings. Android asks for it at that moment, not at install. Everything else works without it.
 
 ## Features
 
@@ -47,15 +51,26 @@ Numbers follow the ART numbering plan, with 9 digits after `+237`.
 
 Networks are labelled "Likely" because ported numbers keep their original prefix.
 
+### Send money
+
+**Send**, in the app or on the widget, opens a small dialog with the recipient's local number and likely network. Enter the amount, check the exact code shown, then choose **Dial**.
+
+- The default code is `*126*9*{number}*{amount}#` (MTN MoMo). If your operator uses a different code, change it in Settings.
+- **Dial** opens your phone's dialer with the code filled in.
+- **Dial directly**, an optional setting, calls the code straight away.
+- Your phone then shows the operator's menu, where you confirm and enter your PIN. The app never sees your PIN.
+
 ### Home-screen widget
 
 The widget works without opening the app, and its layout changes as you resize it:
 
 | Widget size | What it shows |
 |---|---|
-| 1 row | Paste button, cleaned number and copy button |
-| 2 rows | Adds the country and network line, plus country code and `+` toggles |
-| Taller | Adds up to 3 recent numbers, each copied with a tap |
+| Small (1 row) | The number, with Paste, Copy and Send icons |
+| Medium (4×2) | Adds the country and network line, country code and `+` toggles, and labelled buttons |
+| Tall | Adds up to 3 recent numbers, each copied with a tap |
+
+When the widget is empty, it shows a single wide Paste button. Turn on **Widget: copy automatically after Paste** in Settings to clean and copy with one tap.
 
 ### More ways to use it
 
@@ -66,7 +81,7 @@ The widget works without opening the app, and its layout changes as you resize i
 
 ## Install
 
-1. Download `NumberCleaner-v1.2.apk` from the [latest release](../../releases/latest).
+1. Download `NumberCleaner-v1.3.apk` from the [latest release](../../releases/latest).
 2. Open the file on your phone and allow installs from that app if Android asks.
 
 The app needs Android 7.0 (API 24) or newer. APKs for earlier versions are on the [releases page](../../releases).
@@ -92,7 +107,7 @@ The APK is written to `app/build/outputs/apk/debug/app-debug.apk`. On Windows, u
 
 ### Test
 
-The cleaning, detection and output rules have unit tests in `app/src/test`:
+The cleaning, detection, output and USSD rules have unit tests in `app/src/test`:
 
 ```bash
 ./gradlew test
@@ -112,6 +127,8 @@ All source files are in `app/src/main/java/app/numbercleaner/`.
 | `Country.java` | Calling codes, number lengths, and trunk and exit prefixes |
 | `MainActivity.java` | The app's single screen |
 | `QuickCleanActivity.java` | Invisible clipboard cleaner used by the widget and launcher shortcut |
+| `UssdActivity.java` | Send-money dialog |
+| `Ussd.java` | USSD code templates, as plain Java |
 | `NumberWidget.java` | Home-screen widget |
 | `Store.java` | Settings and history |
 | `Clip.java` | Clipboard helpers |
@@ -126,6 +143,7 @@ The release build is signed with the debug key so that `assembleRelease` produce
 
 | Version | Highlights |
 |---|---|
+| [`v1.3`](../../releases/tag/v1.3) | Send money by USSD, new Settings, and a redesigned widget with a Send button |
 | [`v1.2`](../../releases/tag/v1.2) | Likely-network labels for Cameroon and a widget layout that adapts to its size |
 | [`v1.1`](../../releases/tag/v1.1) | Output format options, detection across about 200 countries, Cameroon rules and one-tap clipboard cleaning |
 | [`v1.0`](../../releases/tag/v1.0) | First release with live cleaning, default country code, copy and share, recent numbers, and a widget |

@@ -1,6 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- No permissions: writing to the clipboard and showing a widget need none. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Only used if the user turns on "Dial directly"; asked for at that moment, never on install.
+         Without it, Send opens the dialer with the code filled in. -->
+    <uses-permission android:name="android.permission.CALL_PHONE" />
+    <!-- Still installable on devices without a SIM (tablets): the cleaner works everywhere. -->
+    <uses-feature android:name="android.hardware.telephony" android:required="false" />
 
     <application
         android:allowBackup="true"
@@ -44,6 +49,15 @@
             android:noHistory="true"
             android:taskAffinity=""
             android:theme="@style/Theme.NumberCleaner.Invisible" />
+
+        <!-- Send-money dialog, from the app or straight from the widget. -->
+        <activity
+            android:name=".UssdActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:taskAffinity=""
+            android:theme="@style/Theme.NumberCleaner.Ussd"
+            android:windowSoftInputMode="adjustResize|stateVisible" />
 
         <receiver
             android:name=".NumberWidget"

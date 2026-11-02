@@ -1,9 +1,11 @@
 package app.numbercleaner;
 
+import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -25,6 +27,7 @@ import android.widget.ImageButton;
 import android.widget.LinearLayout;
 import android.widget.ListView;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -37,6 +40,7 @@ public class MainActivity extends Activity {
 
     private static final String STATE_AUTO_PASTE = "auto_paste";
     private static final String STATE_FORCED = "forced";
+    private static final int REQUEST_CALL_PHONE = 1;
 
     private Store store;
     /** Default country for local numbers. */
@@ -58,6 +62,11 @@ public class MainActivity extends Activity {
     private CheckBox includePlus;
     private Button copyButton;
     private ImageButton shareButton;
+    private Button sendButton;
+    private CheckBox autoCopySetting;
+    private EditText ussdSetting;
+    private TextView ussdHelp;
+    private CheckBox directDialSetting;
     private LinearLayout historyList;
     private TextView historyEmpty;
     private Button clearHistoryButton;
@@ -88,6 +97,11 @@ public class MainActivity extends Activity {
         includePlus = findViewById(R.id.include_plus);
         copyButton = findViewById(R.id.copy);
         shareButton = findViewById(R.id.share);
+        sendButton = findViewById(R.id.send);
+        autoCopySetting = findViewById(R.id.setting_auto_copy);
+        ussdSetting = findViewById(R.id.setting_ussd);
+        ussdHelp = findViewById(R.id.setting_ussd_help);
+        directDialSetting = findViewById(R.id.setting_direct_dial);
         historyList = findViewById(R.id.history_list);
         historyEmpty = findViewById(R.id.history_empty);
         clearHistoryButton = findViewById(R.id.clear_history);
@@ -129,6 +143,8 @@ public class MainActivity extends Activity {
         copyButton.setOnClickListener(v -> copyCurrent());
         output.setOnClickListener(v -> copyCurrent());
         shareButton.setOnClickListener(v -> shareCurrent());
+        sendButton.setOnClickListener(v -> sendCurrent());
+        setupSettings();
         clearHistoryButton.setOnClickListener(v -> confirmClearHistory());
 
         if (savedInstanceState != null) {
@@ -184,8 +200,15 @@ public class MainActivity extends Activity {
             includePlus.setOnCheckedChangeListener((b, checked) -> onFormatChanged());
             updatePlusEnabled();
         }
+        syncDirectDial();    // permission may have been changed in system settings
         refresh();
         renderHistory();   // the widget may have changed it
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        if (ussdSetting.hasFocus()) commitUssdTemplate();
     }
 
     private boolean dialogOpen() {
@@ -276,6 +299,9 @@ public class MainActivity extends Activity {
         copyButton.setEnabled(!empty);
         shareButton.setEnabled(!empty);
         shareButton.setAlpha(empty ? 0.38f : 1f);
+        boolean canSend = store.sendBlockReason(current) == 0;
+        sendButton.setEnabled(canSend);
+        sendButton.setAlpha(canSend ? 1f : 0.38f);
 
         // Country line: "🇨🇲 Cameroon · Mobile · from the number ▾"
         Country c = current.country;
@@ -357,6 +383,87 @@ public class MainActivity extends Activity {
                 .setType("text/plain")
                 .putExtra(Intent.EXTRA_TEXT, formatted());
         startActivity(Intent.createChooser(send, getString(R.string.share)));
+    }
+
+    /** Opens the send-money dialog for the number on screen. */
+    private void sendCurrent() {
+        if (current == null || current.isEmpty()) return;
+        hideKeyboard();
+        startActivity(UssdActivity.intent(this, current.e164()));
+    }
+
+    // ---- Settings ----
+
+    private void setupSettings() {
+        for (CheckBox c : new CheckBox[]{autoCopySetting, directDialSetting}) c.setSaveEnabled(false);
+        autoCopySetting.setChecked(store.autoCopyOnPaste());
+        autoCopySetting.setOnCheckedChangeListener((b, on) -> store.setAutoCopyOnPaste(on));
+
+        ussdSetting.setSaveEnabled(false);
+        ussdSetting.setText(store.ussdTemplate());
+        ussdSetting.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int a, int b, int c) { }
+            @Override public void onTextChanged(CharSequence s, int a, int b, int c) { }
+            @Override public void afterTextChanged(Editable s) {
+                boolean ok = Ussd.isValidTemplate(s.toString().trim());
+                ussdHelp.setText(ok ? R.string.setting_ussd_help : R.string.setting_ussd_invalid);
+                ussdHelp.setTextColor(getColor(ok ? R.color.text_secondary : R.color.warning));
+            }
+        });
+        // Saved only when editing is finished, never half-typed.
+        ussdSetting.setOnFocusChangeListener((v, focused) -> { if (!focused) commitUssdTemplate(); });
+        ussdSetting.setOnEditorActionListener((v, actionId, event) -> {
+            commitUssdTemplate();
+            hideKeyboard(ussdSetting);
+            return true;
+        });
+        findViewById(R.id.setting_ussd_reset).setOnClickListener(v -> {
+            ussdSetting.setText(Ussd.DEFAULT_TEMPLATE);
+            commitUssdTemplate();
+        });
+
+        syncDirectDial();
+    }
+
+    private final android.widget.CompoundButton.OnCheckedChangeListener directDialListener = (b, on) -> {
+        if (on && !hasCallPermission()) {
+            requestPermissions(new String[]{Manifest.permission.CALL_PHONE}, REQUEST_CALL_PHONE);
+        } else {
+            store.setDirectDial(on);
+        }
+    };
+
+    /** Saves the template if valid; otherwise puts the saved one back. */
+    private void commitUssdTemplate() {
+        String t = ussdSetting.getText().toString().trim();
+        if (Ussd.isValidTemplate(t)) {
+            store.setUssdTemplate(t);
+        } else {
+            ussdSetting.setText(store.ussdTemplate());
+            Toast.makeText(this, R.string.setting_ussd_reverted, Toast.LENGTH_LONG).show();
+        }
+    }
+
+    /** Keeps the checkbox and the stored setting in line with the actual permission. */
+    private void syncDirectDial() {
+        if (!hasCallPermission()) store.setDirectDial(false);
+        directDialSetting.setOnCheckedChangeListener(null);
+        directDialSetting.setChecked(store.directDial());
+        directDialSetting.setOnCheckedChangeListener(directDialListener);
+    }
+
+    private boolean hasCallPermission() {
+        return checkSelfPermission(Manifest.permission.CALL_PHONE) == PackageManager.PERMISSION_GRANTED;
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] results) {
+        super.onRequestPermissionsResult(requestCode, permissions, results);
+        if (requestCode != REQUEST_CALL_PHONE) return;
+        boolean granted = results.length > 0 && results[0] == PackageManager.PERMISSION_GRANTED;
+        store.setDirectDial(granted);
+        syncDirectDial();
+        if (!granted) Toast.makeText(this, R.string.setting_direct_dial_denied, Toast.LENGTH_LONG).show();
     }
 
     // ---- Country picker ----
@@ -542,6 +649,17 @@ public class MainActivity extends Activity {
         InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
         // Small delay: some keyboards ignore requests made in the same frame the window gains focus.
         if (imm != null) input.postDelayed(() -> imm.showSoftInput(input, InputMethodManager.SHOW_IMPLICIT), 120);
+    }
+
+    private void hideKeyboard(View v) {
+        InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+        if (imm != null) imm.hideSoftInputFromWindow(v.getWindowToken(), 0);
+        // Hand focus to the parent (not the first field on the page, which would scroll to the top).
+        if (v.getParent() instanceof View) {
+            View parent = (View) v.getParent();
+            parent.setFocusableInTouchMode(true);
+            parent.requestFocus();
+        }
     }
 
     private void hideKeyboard() {

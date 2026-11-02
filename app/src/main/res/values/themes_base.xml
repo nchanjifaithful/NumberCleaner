@@ -4,4 +4,5 @@
         <item name="android:windowLightStatusBar">true</item>
     </style>
     <style name="Base.Dialog.NumberCleaner" parent="android:Theme.Material.Light.Dialog.Alert" />
+    <style name="Base.ActivityDialog.NumberCleaner" parent="android:Theme.Material.Light.Dialog.NoActionBar" />
 </resources>

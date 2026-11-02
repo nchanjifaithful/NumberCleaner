@@ -26,6 +26,9 @@ public final class Store {
     private static final String KEY_INCLUDE_CODE = "include_code";
     private static final String KEY_INCLUDE_PLUS = "include_plus";
     private static final String KEY_WIDGET_NUMBER = "widget_number";
+    private static final String KEY_AUTO_COPY = "widget_auto_copy";
+    private static final String KEY_USSD_TEMPLATE = "ussd_template";
+    private static final String KEY_DIRECT_DIAL = "ussd_direct_dial";
 
     public static final class Entry {
         public final String number;
@@ -99,6 +102,46 @@ public final class Store {
     /** A stored number in the current output format — what Copy puts on the clipboard. */
     public String display(String stored) {
         return parse(stored).format(includeCode(), includePlus());
+    }
+
+    // ---- Settings ----
+
+    /** Widget Paste also copies the cleaned number straight away. */
+    public boolean autoCopyOnPaste() {
+        return prefs.getBoolean(KEY_AUTO_COPY, false);
+    }
+
+    public void setAutoCopyOnPaste(boolean on) {
+        prefs.edit().putBoolean(KEY_AUTO_COPY, on).apply();
+    }
+
+    public String ussdTemplate() {
+        String t = prefs.getString(KEY_USSD_TEMPLATE, null);
+        return Ussd.isValidTemplate(t) ? t : Ussd.DEFAULT_TEMPLATE;
+    }
+
+    public void setUssdTemplate(String template) {
+        prefs.edit().putString(KEY_USSD_TEMPLATE, template).apply();
+    }
+
+    /** Call the code immediately (needs the phone permission) instead of opening the dialer. */
+    public boolean directDial() {
+        return prefs.getBoolean(KEY_DIRECT_DIAL, false);
+    }
+
+    public void setDirectDial(boolean on) {
+        prefs.edit().putBoolean(KEY_DIRECT_DIAL, on).apply();
+    }
+
+    /**
+     * Why this number can't be used with the USSD code, or 0 if it can. Money codes take a local
+     * number of your own country, so unknown/foreign numbers and numbers with a warning are refused.
+     */
+    public int sendBlockReason(PhoneCleaner.Result r) {
+        if (r == null || r.isEmpty() || r.kind == PhoneCleaner.Kind.SHORT_CODE) return R.string.ussd_no_number;
+        if (r.country == null || r.country != getCountry()) return R.string.ussd_foreign;
+        if (r.warning != null) return R.string.ussd_check_number;
+        return 0;
     }
 
     // ---- Widget ----

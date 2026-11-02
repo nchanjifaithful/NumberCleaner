@@ -69,6 +69,12 @@ public class QuickCleanActivity extends Activity {
         if (getIntent().getBooleanExtra(EXTRA_TO_WIDGET, false)) {
             if (r == null || r.isEmpty()) {
                 android.widget.Toast.makeText(this, R.string.widget_nothing, android.widget.Toast.LENGTH_SHORT).show();
+            } else if (store.autoCopyOnPaste()) {
+                // Setting on: paste = clean + copy in one tap (also adds to recents and fills the box).
+                String out = r.format(store.includeCode(), store.includePlus());
+                Clip.copy(this, out, r.warning != null ? getString(R.string.quick_copied_warn, out, r.warning)
+                        : Build.VERSION.SDK_INT < 33 ? getString(R.string.quick_copied, out) : null);
+                store.remember(r.e164());
             } else {
                 store.setWidgetNumber(r.e164());
             }

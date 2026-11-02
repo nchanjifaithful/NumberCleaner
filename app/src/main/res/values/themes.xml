@@ -23,6 +23,20 @@
         <item name="android:textColorPrimary">@color/text_primary</item>
     </style>
 
+    <!-- Send-money dialog (activity shown as a dialog, also over the home screen). -->
+    <style name="Theme.NumberCleaner.Ussd" parent="Base.ActivityDialog.NumberCleaner">
+        <item name="android:windowBackground">@drawable/bg_dialog</item>
+        <item name="android:windowMinWidthMajor">88%</item>
+        <item name="android:windowMinWidthMinor">92%</item>
+        <item name="android:windowCloseOnTouchOutside">true</item>
+        <item name="android:colorAccent">@color/accent</item>
+        <item name="android:colorControlActivated">@color/accent</item>
+        <item name="android:colorControlNormal">@color/text_secondary</item>
+        <item name="android:textColorPrimary">@color/text_primary</item>
+        <item name="android:textColorSecondary">@color/text_secondary</item>
+        <item name="android:textColorHint">@color/text_hint</item>
+    </style>
+
     <!-- Invisible activity used by the widget / launcher shortcut to read the clipboard. -->
     <style name="Theme.NumberCleaner.Invisible" parent="android:Theme.Translucent.NoTitleBar">
         <item name="android:windowBackground">@android:color/transparent</item>

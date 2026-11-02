@@ -49,12 +49,12 @@
     <string name="copy_number_cd">Copy %1$s</string>
 
     <string name="widget_name">Number Cleaner</string>
-    <string name="widget_description">Paste a number, pick the format and copy it, right from your home screen.</string>
-    <string name="widget_empty">Tap paste</string>
-    <string name="widget_hint">Copy a number anywhere, then tap paste</string>
+    <string name="widget_description">Paste, clean, copy, or send money to a number, right from your home screen.</string>
+    <string name="widget_empty">Copy a number, then tap Paste</string>
+    <string name="widget_hint">Ready to clean</string>
     <string name="widget_paste_cd">Paste and clean the number on the clipboard</string>
-    <string name="widget_code_on">✓ Country code</string>
-    <string name="widget_code_off">Country code</string>
+    <string name="widget_code_on">✓ %1$s</string>
+    <string name="widget_code_off">%1$s</string>
     <string name="widget_plus_on">✓ +</string>
     <string name="widget_plus_off">+</string>
     <string name="widget_nothing">No phone number on the clipboard</string>
@@ -62,4 +62,32 @@
     <string name="quick_copied_warn">Copied %1$s, but check it: %2$s</string>
     <string name="shortcut_clean_short">Clean clipboard</string>
     <string name="shortcut_clean_long">Clean the copied number</string>
+
+    <!-- Send money (USSD) -->
+    <string name="send">Send</string>
+    <string name="send_cd">Send money to this number with a USSD code</string>
+    <string name="ussd_title">Send money</string>
+    <string name="ussd_to">To</string>
+    <string name="ussd_amount">Amount</string>
+    <string name="ussd_amount_hint">e.g. 5000</string>
+    <string name="ussd_will_dial">Code to dial</string>
+    <string name="ussd_pin_note">Your phone then shows the operator menu, where you confirm and enter your PIN.</string>
+    <string name="ussd_dial">Dial</string>
+    <string name="ussd_no_number">Paste a number first</string>
+    <string name="ussd_foreign">Send works with %1$s numbers only (the code takes a local number).</string>
+    <string name="ussd_check_number">Fix the number first: it doesn\'t look valid.</string>
+    <string name="ussd_no_dialer">Couldn\'t open the phone dialer</string>
+
+    <!-- Settings -->
+    <string name="settings">Settings</string>
+    <string name="setting_auto_copy">Widget: copy automatically after Paste</string>
+    <string name="setting_auto_copy_help">Paste cleans the number and puts it on the clipboard in one tap.</string>
+    <string name="setting_ussd">Send-money USSD code</string>
+    <string name="setting_ussd_help">{number} becomes the local number, {amount} the amount you enter.</string>
+    <string name="setting_ussd_reset">Reset</string>
+    <string name="setting_ussd_invalid">Must start with * or #, end with #, and include {number}</string>
+    <string name="setting_ussd_reverted">That code isn\'t valid, so the previous one was kept</string>
+    <string name="setting_direct_dial">Dial directly</string>
+    <string name="setting_direct_dial_help">Calls the code without stopping at the dialer. Needs the phone permission.</string>
+    <string name="setting_direct_dial_denied">Phone permission not granted. The dialer will open instead.</string>
 </resources>
